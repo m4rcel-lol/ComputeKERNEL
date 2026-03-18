@@ -1,0 +1,9 @@
+build/
+out/
+include/generated/
+__pycache__/
+*/__pycache__/
+*.o
+*.elf
+*.iso
+*.img

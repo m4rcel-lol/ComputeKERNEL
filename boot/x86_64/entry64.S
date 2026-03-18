@@ -145,20 +145,31 @@ _halt:
 mb2_magic_saved: .long 0
 mb2_info_saved:  .long 0
 
-/* ── .bss: page tables and stacks ───────────────────────────────────── */
+/* ── .bss: stacks first, then page tables ────────────────────────────
+ *
+ * IMPORTANT: stacks grow downward.  Placing them BEFORE the page tables
+ * means any overflow extends away from pml4/pdpt/pd rather than into them.
+ * With the original order (page tables first, stacks above) a stack that
+ * grew past its reservation would silently corrupt the live page structure,
+ * causing a page fault whose handler was also unreachable → triple fault.
+ *
+ * The kernel stack is 64 KiB (up from 16 KiB) to give deep call chains
+ * enough headroom before the guard region.
+ */
 .section .bss
-.align 4096
-pml4:  .skip 4096
-pdpt:  .skip 4096
-pd:    .skip 4096
-
 .align 16
 boot32_stack_bottom: .skip 4096
 boot32_stack_top:
 
 .align 16
-kernel_stack_bottom: .skip 16384
+kernel_stack_bottom: .skip 65536          /* 64 KiB kernel stack */
 kernel_stack_top:
+
+/* Page tables sit at the top of BSS; downward stack growth cannot reach them */
+.align 4096
+pml4:  .skip 4096
+pdpt:  .skip 4096
+pd:    .skip 4096
 
 /* Mark the stack as non-executable (suppresses linker warning) */
 .section .note.GNU-stack, "", @progbits

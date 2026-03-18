@@ -1,0 +1,34 @@
+name: Build VM ISO
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-vm-iso:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        vm_target:
+          - virtualbox
+          - vmware
+          - qemu
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build VM ISO for ${{ matrix.vm_target }}
+        run: make iso VM_TARGET=${{ matrix.vm_target }}
+
+      - name: Upload VM ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: computekernel-${{ matrix.vm_target }}-iso
+          path: out/computekernel-${{ matrix.vm_target }}.iso
+          if-no-files-found: error

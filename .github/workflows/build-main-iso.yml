@@ -1,0 +1,31 @@
+name: Build Main Bootable ISO
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-main-iso:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build main ISO
+        run: make iso
+
+      - name: Verify ISO output
+        run: test -f out/computekernel.iso
+
+      - name: Upload main ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: computekernel-main-iso
+          path: out/computekernel.iso
+          if-no-files-found: error

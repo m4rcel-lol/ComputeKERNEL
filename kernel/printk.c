@@ -1,5 +1,9 @@
 #include <ck/kernel.h>
+#include <ck/types.h>
+#include <ck/string.h>
+#include <stdarg.h>
 
+/* ── VGA text console ───────────────────────────────────────────────── */
 #define VGA_BASE  ((volatile unsigned short *)0xb8000)
 #define VGA_COLS  80
 #define VGA_ROWS  25
@@ -40,6 +44,14 @@ void ck_putchar(char c)
     if (c == '\n') {
         col = 0;
         row++;
+    } else if (c == '\r') {
+        col = 0;
+    } else if (c == '\t') {
+        col = (col + 8) & ~7;
+        if (col >= VGA_COLS) {
+            col = 0;
+            row++;
+        }
     } else {
         vga[row * VGA_COLS + col] = VGA_ATTR | (unsigned char)c;
         if (++col >= VGA_COLS) {
@@ -57,9 +69,136 @@ void ck_puts(const char *s)
         ck_putchar(*s++);
 }
 
+/* ── Full printf-style formatter ────────────────────────────────────── */
+
+/*
+ * Supported specifiers: %c %s %d %i %u %x %X %p %% %z (size_t)
+ * Width and zero-padding: %08x, %-10s, etc.
+ */
 void ck_printk(const char *fmt, ...)
 {
-    /* Basic passthrough for string literals (no format expansion yet) */
-    ck_puts(fmt);
+    va_list ap;
+    va_start(ap, fmt);
+
+    while (*fmt) {
+        if (*fmt != '%') {
+            ck_putchar(*fmt++);
+            continue;
+        }
+        fmt++;  /* skip '%' */
+
+        /* Flags */
+        int zero_pad = 0, left_align = 0;
+        while (*fmt == '0' || *fmt == '-') {
+            if (*fmt == '0') zero_pad  = 1;
+            if (*fmt == '-') left_align = 1;
+            fmt++;
+        }
+
+        /* Width */
+        int width = 0;
+        while (*fmt >= '0' && *fmt <= '9')
+            width = width * 10 + (*fmt++ - '0');
+
+        /* Precision (ignored, consumed) */
+        if (*fmt == '.') {
+            fmt++;
+            while (*fmt >= '0' && *fmt <= '9') fmt++;
+        }
+
+        /* Length modifier */
+        int is_long = 0, is_size = 0;
+        if (*fmt == 'l') { is_long = 1; fmt++; if (*fmt == 'l') fmt++; }
+        else if (*fmt == 'z') { is_size = 1; fmt++; }
+        (void)is_size; /* used implicitly via u64 path */
+
+        char   buf[32];
+        int    blen;
+        char   pad_ch = (zero_pad && !left_align) ? '0' : ' ';
+
+        switch (*fmt) {
+        case 'c': {
+            char ch = (char)va_arg(ap, int);
+            if (!left_align)
+                for (int i = 1; i < width; i++) ck_putchar(pad_ch);
+            ck_putchar(ch);
+            if (left_align)
+                for (int i = 1; i < width; i++) ck_putchar(' ');
+            break;
+        }
+        case 's': {
+            const char *s = va_arg(ap, const char *);
+            if (!s) s = "(null)";
+            int slen = (int)strlen(s);
+            if (!left_align)
+                for (int i = slen; i < width; i++) ck_putchar(' ');
+            ck_puts(s);
+            if (left_align)
+                for (int i = slen; i < width; i++) ck_putchar(' ');
+            break;
+        }
+        case 'd':
+        case 'i': {
+            s64 val = is_long ? (s64)va_arg(ap, long long) : (s64)va_arg(ap, int);
+            blen = itoa_dec(val, buf);
+            if (!left_align)
+                for (int i = blen; i < width; i++) ck_putchar(pad_ch);
+            ck_puts(buf);
+            if (left_align)
+                for (int i = blen; i < width; i++) ck_putchar(' ');
+            break;
+        }
+        case 'u': {
+            u64 val = is_long ? va_arg(ap, unsigned long long) : (u64)va_arg(ap, unsigned int);
+            blen = utoa_dec(val, buf);
+            if (!left_align)
+                for (int i = blen; i < width; i++) ck_putchar(pad_ch);
+            ck_puts(buf);
+            if (left_align)
+                for (int i = blen; i < width; i++) ck_putchar(' ');
+            break;
+        }
+        case 'x':
+        case 'X': {
+            u64 val = is_long ? va_arg(ap, unsigned long long) : (u64)va_arg(ap, unsigned int);
+            blen = utoa_hex(val, buf, (*fmt == 'X'));
+            if (!left_align)
+                for (int i = blen; i < width; i++) ck_putchar(pad_ch);
+            ck_puts(buf);
+            if (left_align)
+                for (int i = blen; i < width; i++) ck_putchar(' ');
+            break;
+        }
+        case 'p': {
+            u64 val = (u64)(uintptr_t)va_arg(ap, void *);
+            ck_puts("0x");
+            blen = utoa_hex(val, buf, 0);
+            /* pad pointers to 16 hex digits */
+            for (int i = blen; i < 16; i++) ck_putchar('0');
+            ck_puts(buf);
+            break;
+        }
+        case '%':
+            ck_putchar('%');
+            break;
+        case '\0':
+            goto done;
+        default:
+            ck_putchar('%');
+            ck_putchar(*fmt);
+            break;
+        }
+        fmt++;
+    }
+done:
+    va_end(ap);
+}
+
+/* ── Panic ──────────────────────────────────────────────────────────── */
+void ck_panic(const char *msg)
+{
+    ck_printk("\n[PANIC] %s\n", msg);
+    for (;;)
+        __asm__ __volatile__("cli; hlt");
 }
 

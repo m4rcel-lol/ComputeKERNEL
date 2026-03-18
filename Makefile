@@ -16,8 +16,26 @@ ASFLAGS := -m64 -c
 
 LDFLAGS := -T arch/x86_64/linker.ld -nostdlib -z max-page-size=0x1000
 
-SRCS_C  := kernel/init/main.c kernel/printk.c kernel/stubs.c
-SRCS_S  := boot/x86_64/entry64.S
+SRCS_C  := \
+    kernel/init/main.c \
+    kernel/printk.c \
+    kernel/stubs.c \
+    kernel/lib/string.c \
+    kernel/drivers/serial.c \
+    kernel/arch/x86_64/gdt.c \
+    kernel/arch/x86_64/idt.c \
+    kernel/arch/x86_64/pic.c \
+    kernel/arch/x86_64/pit.c \
+    kernel/arch/x86_64/keyboard.c \
+    kernel/arch/x86_64/cpu.c \
+    kernel/mm/pmm.c \
+    kernel/mm/heap.c \
+    kernel/sched/sched.c \
+    kernel/vfs/vfs.c \
+    kernel/vfs/ramfs.c
+SRCS_S  := boot/x86_64/entry64.S \
+           boot/x86_64/isr_stubs.S \
+           boot/x86_64/switch.S
 
 OBJS    := $(patsubst %.S, $(BUILD)/%.o, $(SRCS_S)) \
            $(patsubst %.c, $(BUILD)/%.o, $(SRCS_C))

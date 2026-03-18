@@ -39,11 +39,10 @@ def main() -> int:
     parser.add_argument("--out", required=True, help="Output directory")
     args = parser.parse_args()
 
-    generated = write_syscall_header(Path(args.out))
-    print(f"generated: {generated}")
+    generated_path = write_syscall_header(Path(args.out))
+    print(f"generated: {generated_path}")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

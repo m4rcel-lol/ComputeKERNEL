@@ -18,6 +18,8 @@ void init_spawn_first_user(const char *path) {
 }
 
 void arch_halt(void) {
-    __asm__ __volatile__("hlt");
+    /* Looping hlt keeps the CPU halted even after interrupt wakeups. */
+    for (;;) {
+        __asm__ __volatile__("hlt");
+    }
 }
-

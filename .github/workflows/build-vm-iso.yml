@@ -39,8 +39,9 @@ jobs:
         with:
           path: |
             build
-            out
-          key: ${{ runner.os }}-vm-iso-${{ matrix.vm_target }}-${{ hashFiles('Makefile', 'scripts/**', 'arch/**', 'boot/**', 'include/**', 'kernel/**', 'tools/**') }}
+          key: ${{ runner.os }}-vm-iso-${{ matrix.vm_target }}-${{ hashFiles('Makefile', 'scripts/**/*.sh', 'tools/**/*.py', 'arch/**/*', 'boot/**/*', 'include/**/*', 'kernel/**/*') }}
+          restore-keys: |
+            ${{ runner.os }}-vm-iso-${{ matrix.vm_target }}-
 
       - name: Validate tooling and sources
         run: |

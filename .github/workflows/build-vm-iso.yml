@@ -23,8 +23,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build VM ISO for ${{ matrix.vm_target }}
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            gcc binutils grub-pc-bin grub-common xorriso mtools
+
+      - name: Build kernel and VM ISO for ${{ matrix.vm_target }}
         run: make iso VM_TARGET=${{ matrix.vm_target }}
+
+      - name: Verify ISO is a valid El Torito image
+        run: |
+          file out/computekernel-${{ matrix.vm_target }}.iso | grep -i "ISO 9660"
 
       - name: Upload VM ISO artifact
         uses: actions/upload-artifact@v4

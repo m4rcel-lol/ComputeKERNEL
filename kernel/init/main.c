@@ -1,13 +1,16 @@
 #include <ck/kernel.h>
 
-void kmain(void *boot_info) {
+void kmain(unsigned int mb2_magic, unsigned int mb2_info)
+{
+    (void)mb2_magic;
+    (void)mb2_info;
+
     ck_early_console_init();
-    ck_printk("ComputeKERNEL: boot start\n");
-    mm_early_init(boot_info);
+    ck_puts("ComputeKERNEL: boot start\n");
+    mm_early_init((void *)(unsigned long)mb2_info);
     arch_init();
     sched_init();
     vfs_init();
-    init_spawn_first_user("/sbin/init");
-    /* Should never return. */
+    ck_puts("ComputeKERNEL: halting.\n");
     arch_halt();
 }

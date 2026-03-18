@@ -17,11 +17,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build main ISO
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            gcc binutils grub-pc-bin grub-common xorriso mtools
+
+      - name: Build kernel and main ISO
         run: make iso
 
-      - name: Verify ISO output
-        run: test -f out/computekernel.iso
+      - name: Verify ISO is a valid El Torito image
+        run: |
+          test -f out/computekernel.iso
+          file out/computekernel.iso | grep -i "ISO 9660"
 
       - name: Upload main ISO artifact
         uses: actions/upload-artifact@v4

@@ -1,14 +1,21 @@
 #!/usr/bin/env sh
 set -eu
 
-mkdir -p out
 VM_TARGET="${VM_TARGET:-main}"
+ISO_ROOT="build/iso_root"
 ISO_PATH="out/computekernel.iso"
 
 if [ "$VM_TARGET" != "main" ]; then
     ISO_PATH="out/computekernel-${VM_TARGET}.iso"
 fi
 
-echo "ISO assembly placeholder: create ${ISO_PATH} in later phase."
-echo "ComputeKERNEL scaffold ISO marker (${VM_TARGET})" > "${ISO_PATH}"
-echo "Created ${ISO_PATH} (placeholder text file)."
+# Assemble the ISO directory tree
+mkdir -p "${ISO_ROOT}/boot/grub"
+cp out/computekernel.elf "${ISO_ROOT}/boot/computekernel.elf"
+cp boot/grub/grub.cfg    "${ISO_ROOT}/boot/grub/grub.cfg"
+
+# Create a bootable El Torito ISO using GRUB
+mkdir -p out
+grub-mkrescue -o "${ISO_PATH}" "${ISO_ROOT}"
+
+echo "[CK] ISO → ${ISO_PATH}"

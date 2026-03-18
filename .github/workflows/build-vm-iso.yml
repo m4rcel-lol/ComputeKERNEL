@@ -1,4 +1,4 @@
-name: Build VM ISO
+name: CI - Build VM ISOs
 
 on:
   push:
@@ -10,10 +10,21 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build-vm-iso:
+    name: Build and package ${{ matrix.vm_target }} ISO
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
         vm_target:
           - virtualbox
@@ -23,8 +34,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build VM ISO for ${{ matrix.vm_target }}
+      - name: Cache build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            build
+            out
+          key: ${{ runner.os }}-vm-iso-${{ matrix.vm_target }}-${{ hashFiles('Makefile', 'scripts/**', 'arch/**', 'boot/**', 'include/**', 'kernel/**', 'tools/**') }}
+
+      - name: Validate tooling and sources
+        run: |
+          set -euo pipefail
+          make lint
+          make test
+
+      - name: Compile kernel scaffold
+        run: |
+          set -euo pipefail
+          make kernel
+
+      - name: Assemble VM ISO for ${{ matrix.vm_target }}
         run: make iso VM_TARGET=${{ matrix.vm_target }}
+
+      - name: Verify VM ISO output
+        run: |
+          set -euo pipefail
+          test -f out/computekernel-${{ matrix.vm_target }}.iso
+          ls -lh out/computekernel-${{ matrix.vm_target }}.iso
 
       - name: Upload VM ISO artifact
         uses: actions/upload-artifact@v4
@@ -32,3 +68,5 @@ jobs:
           name: computekernel-${{ matrix.vm_target }}-iso
           path: out/computekernel-${{ matrix.vm_target }}.iso
           if-no-files-found: error
+          compression-level: 6
+          retention-days: 14

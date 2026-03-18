@@ -1,4 +1,4 @@
-name: Build Main Bootable ISO
+name: CI - Build Main ISO
 
 on:
   push:
@@ -10,18 +10,50 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build-main-iso:
+    name: Build and package main ISO
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build main ISO
+      - name: Cache build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            build
+            out
+          key: ${{ runner.os }}-main-iso-${{ hashFiles('Makefile', 'scripts/**', 'arch/**', 'boot/**', 'include/**', 'kernel/**', 'tools/**') }}
+
+      - name: Validate tooling and sources
+        run: |
+          set -euo pipefail
+          make lint
+          make test
+
+      - name: Compile kernel scaffold
+        run: |
+          set -euo pipefail
+          make kernel
+
+      - name: Assemble main ISO
         run: make iso
 
       - name: Verify ISO output
-        run: test -f out/computekernel.iso
+        run: |
+          set -euo pipefail
+          test -f out/computekernel.iso
+          ls -lh out/computekernel.iso
 
       - name: Upload main ISO artifact
         uses: actions/upload-artifact@v4
@@ -29,3 +61,5 @@ jobs:
           name: computekernel-main-iso
           path: out/computekernel.iso
           if-no-files-found: error
+          compression-level: 6
+          retention-days: 14

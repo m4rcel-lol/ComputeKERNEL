@@ -1,25 +1,13 @@
-#include <ck/kernel.h>
-
-void mm_early_init(void *boot_info) {
-    (void)boot_info;
-}
-
-void arch_init(void) {
-}
-
-void sched_init(void) {
-}
-
-void vfs_init(void) {
-}
-
-void init_spawn_first_user(const char *path) {
-    (void)path;
-}
-
-void arch_halt(void) {
-    /* Looping hlt keeps the CPU halted even after interrupt wakeups. */
-    for (;;) {
-        __asm__ __volatile__("hlt");
-    }
-}
+/*
+ * kernel/stubs.c – intentionally empty.
+ *
+ * All subsystems that were formerly stubbed out here now have real
+ * implementations:
+ *   mm_early_init  → kernel/mm/pmm.c
+ *   arch_init      → kernel/arch/x86_64/cpu.c
+ *   arch_halt      → kernel/arch/x86_64/cpu.c
+ *   sched_init     → kernel/sched/sched.c
+ *   vfs_init       → kernel/vfs/vfs.c
+ *   heap_init      → kernel/mm/heap.c
+ *   kmalloc/kfree  → kernel/mm/heap.c
+ */

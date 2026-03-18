@@ -19,5 +19,8 @@ SECTIONS
         *(COMMON)
         *(.bss*)
     }
+
+    /* Symbol marking the end of the kernel image (used by PMM) */
+    _kernel_end = .;
 }
 

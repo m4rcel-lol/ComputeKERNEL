@@ -70,10 +70,15 @@ char *strcpy(char *dst, const char *src)
 char *strncpy(char *dst, const char *src, size_t n)
 {
     char *d = dst;
-    while (n && (*d++ = *src++))
+    /* Copy src bytes (including '\0') while n > 0 */
+    while (n && (*d = *src)) {
+        d++;
+        src++;
         n--;
-    if (n)
-        *d = '\0';
+    }
+    /* Zero-pad remaining bytes */
+    while (n--)
+        *d++ = '\0';
     return dst;
 }
 

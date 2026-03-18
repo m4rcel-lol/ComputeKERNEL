@@ -143,7 +143,9 @@ void sched_yield(void)
 
     if (prev_tid == next_tid) return;
 
-    tasks[prev_tid].state = TASK_READY;
+    /* Only transition to READY if currently running (not dead/blocked) */
+    if (tasks[prev_tid].state == TASK_RUNNING)
+        tasks[prev_tid].state = TASK_READY;
     tasks[next_tid].state = TASK_RUNNING;
     current_tid           = next_tid;
 

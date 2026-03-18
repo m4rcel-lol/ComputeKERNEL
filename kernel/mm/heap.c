@@ -99,9 +99,9 @@ void *kmalloc(size_t size)
         cur  = cur->next;
     }
 
-    /* No block large enough – expand the heap and retry */
+    /* No block large enough – expand the heap and retry once */
     expand_heap();
-    return kmalloc(size - (size - size)); /* tail-call retry */
+    return kmalloc(size);
 }
 
 void *kzalloc(size_t size)

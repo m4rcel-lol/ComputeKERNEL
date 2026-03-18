@@ -2,7 +2,13 @@
 set -eu
 
 mkdir -p out
-echo "ISO assembly placeholder: create out/computekernel.iso in later phase."
-echo "ComputeKERNEL scaffold ISO marker" > out/computekernel.iso
-echo "Created out/computekernel.iso (placeholder text file)."
+VM_TARGET="${VM_TARGET:-main}"
+ISO_PATH="out/computekernel.iso"
 
+if [ "$VM_TARGET" != "main" ]; then
+    ISO_PATH="out/computekernel-${VM_TARGET}.iso"
+fi
+
+echo "ISO assembly placeholder: create ${ISO_PATH} in later phase."
+echo "ComputeKERNEL scaffold ISO marker (${VM_TARGET})" > "${ISO_PATH}"
+echo "Created ${ISO_PATH} (placeholder text file)."

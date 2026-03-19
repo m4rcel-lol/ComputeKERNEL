@@ -11,18 +11,38 @@
 #define PS2_DATA 0x60
 #define PS2_STAT 0x64
 
+/* Scan codes for modifier keys */
+#define SC_LSHIFT  0x2A
+#define SC_RSHIFT  0x36
+#define SC_CAPS    0x3A
+
 #define KB_BUF_SIZE 128
 
 static char   kb_buf[KB_BUF_SIZE];
 static u32    kb_head = 0;
 static u32    kb_tail = 0;
+static int    kb_shift_l = 0; /* non-zero while Left Shift is held */
+static int    kb_shift_r = 0; /* non-zero while Right Shift is held */
+static int    kb_caps    = 0; /* Caps Lock toggle */
 
-/* Minimal scan-code set 1 → ASCII (lowercase, no modifiers) */
+/* Scan-code set 1 → ASCII (unshifted) */
 static const char sc_to_ascii[128] = {
     0,   0,   '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=',  '\b', '\t',
     'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n', 0,   'a',  's',
     'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'','`',  0,  '\\','z', 'x',  'c',  'v',
     'b', 'n', 'm', ',', '.', '/',  0,   '*',  0,  ' ',  0,   0,   0,   0,    0,    0,
+    0,   0,   0,   0,   0,   0,   0,   '7', '8', '9', '-', '4', '5', '6',  '+',  '1',
+    '2', '3', '0', '.', 0,   0,   0,   0,   0,   0,   0,   0,   0,   0,    0,    0,
+    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,    0,    0,
+    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,    0,    0,
+};
+
+/* Scan-code set 1 → ASCII (shifted) */
+static const char sc_to_ascii_shifted[128] = {
+    0,   0,   '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+',  '\b', '\t',
+    'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n', 0,   'A',  'S',
+    'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~',  0,  '|', 'Z', 'X',  'C',  'V',
+    'B', 'N', 'M', '<', '>', '?',  0,   '*',  0,  ' ',  0,   0,   0,   0,    0,    0,
     0,   0,   0,   0,   0,   0,   0,   '7', '8', '9', '-', '4', '5', '6',  '+',  '1',
     '2', '3', '0', '.', 0,   0,   0,   0,   0,   0,   0,   0,   0,   0,    0,    0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,    0,    0,
@@ -51,14 +71,34 @@ int keyboard_getchar(void)
 /* IRQ1 handler */
 void keyboard_irq_handler(void)
 {
-    u8  scan = inb(PS2_DATA);
+    u8 scan = inb(PS2_DATA);
+    int release = (scan & 0x80) != 0;
+    u8  code    = scan & 0x7F;
 
-    /* Ignore key-release events (bit 7 set) */
-    if (scan & 0x80)
+    /* Track Shift keys separately so releasing one doesn't clear both */
+    if (code == SC_LSHIFT) { kb_shift_l = release ? 0 : 1; return; }
+    if (code == SC_RSHIFT) { kb_shift_r = release ? 0 : 1; return; }
+
+    /* Toggle Caps Lock on press */
+    if (code == SC_CAPS && !release) {
+        kb_caps ^= 1;
+        return;
+    }
+
+    /* Ignore other key-release events */
+    if (release)
         return;
 
-    if (scan < 128) {
-        char c = sc_to_ascii[scan];
+    if (code < 128) {
+        char c;
+        if (kb_shift_l || kb_shift_r) {
+            c = sc_to_ascii_shifted[code];
+        } else {
+            c = sc_to_ascii[code];
+            /* Apply Caps Lock to letters only */
+            if (kb_caps && c >= 'a' && c <= 'z')
+                c = (char)(c - 'a' + 'A');
+        }
         if (c)
             kb_buf_push(c);
     }

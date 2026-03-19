@@ -6,12 +6,8 @@
 #include <ck/types.h>
 #include <ck/io.h>
 
-/* Defined in kernel/arch/x86_64/pit.c */
-u64 pit_get_ticks(void);
-void pit_sleep_ms(u64 ms);
-
-/* Defined in kernel/arch/x86_64/keyboard.c */
-int keyboard_getchar(void);
+/* Defined in kernel/shell/shell.c */
+void task_shell(void *arg);
 
 /* ── Kernel info banner ─────────────────────────────────────────────── */
 static void print_banner(void)
@@ -71,80 +67,6 @@ static void print_meminfo(struct mb2_info *info)
     }
 }
 
-/* ── Kernel demo tasks ──────────────────────────────────────────────── */
-
-/* Task A: reads /etc/motd and prints it */
-static void task_motd(void *arg)
-{
-    (void)arg;
-    pit_sleep_ms(100);
-
-    int fd = vfs_open("/etc/motd", O_RDONLY);
-    if (fd >= 0) {
-        char buf[256];
-        ssize_t n = vfs_read(fd, buf, sizeof(buf) - 1);
-        if (n > 0) {
-            buf[n] = '\0';
-            ck_printk("[motd] %s", buf);
-        }
-        vfs_close(fd);
-    }
-}
-
-/* Task B: simple counter that prints every second */
-static void task_heartbeat(void *arg)
-{
-    (void)arg;
-    u64 count = 0;
-    for (;;) {
-        pit_sleep_ms(1000);
-        ck_printk("[heartbeat] tick %llu  (free pages: %llu)\n",
-                  count++, pmm_free_pages());
-        if (count >= 10)
-            break;
-    }
-    ck_puts("[heartbeat] done.\n");
-}
-
-/* Task C: filesystem demo – creates a file, writes to it, reads it back */
-static void task_fs_demo(void *arg)
-{
-    (void)arg;
-    pit_sleep_ms(200);
-
-    /* Create a file */
-    int fd = vfs_open("/tmp/hello.txt", O_CREAT | O_RDWR);
-    if (fd < 0) {
-        ck_puts("[fs_demo] could not create /tmp/hello.txt\n");
-        return;
-    }
-    const char *msg = "Hello from ComputeKERNEL ramfs!\n";
-    vfs_write(fd, msg, strlen(msg));
-    vfs_close(fd);
-
-    /* Read it back */
-    fd = vfs_open("/tmp/hello.txt", O_RDONLY);
-    if (fd >= 0) {
-        char buf[64];
-        ssize_t n = vfs_read(fd, buf, sizeof(buf) - 1);
-        if (n > 0) {
-            buf[n] = '\0';
-            ck_printk("[fs_demo] read back: %s", buf);
-        }
-        vfs_close(fd);
-    }
-
-    /* List /etc directory */
-    fd = vfs_open("/etc", O_RDONLY);
-    if (fd >= 0) {
-        char name[VFS_NAME_MAX];
-        ck_puts("[fs_demo] /etc contents:\n");
-        for (u32 i = 0; vfs_readdir(fd, i, name) == 0; i++)
-            ck_printk("  %s\n", name);
-        vfs_close(fd);
-    }
-}
-
 /* ── Kernel main ────────────────────────────────────────────────────── */
 void kmain(unsigned int mb2_magic, unsigned int mb2_info_phys)
 {
@@ -188,9 +110,7 @@ void kmain(unsigned int mb2_magic, unsigned int mb2_info_phys)
 
     /* Create kernel tasks */
     u64 irq_flags = irq_save();
-    task_create("motd",      task_motd,      NULL, 0);
-    task_create("heartbeat", task_heartbeat, NULL, 0);
-    task_create("fs_demo",   task_fs_demo,   NULL, 0);
+    task_create("shell", task_shell, NULL, 0);
     irq_restore(irq_flags);
 
     ck_puts("\n[boot] all subsystems online - handing off to scheduler\n\n");

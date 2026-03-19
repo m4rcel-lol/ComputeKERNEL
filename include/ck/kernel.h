@@ -6,9 +6,31 @@
 
 /* ── Early console (VGA text + serial) ─────────────────────────────── */
 void ck_early_console_init(void);
+void ck_console_clear(void);
 void ck_putchar(char c);
 void ck_puts(const char *s);
 void ck_printk(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+
+/* VGA foreground color constants (background is always black) */
+#define CK_COLOR_BLACK        0
+#define CK_COLOR_BLUE         1
+#define CK_COLOR_GREEN        2
+#define CK_COLOR_CYAN         3
+#define CK_COLOR_RED          4
+#define CK_COLOR_MAGENTA      5
+#define CK_COLOR_BROWN        6
+#define CK_COLOR_LIGHT_GRAY   7
+#define CK_COLOR_DARK_GRAY    8
+#define CK_COLOR_LIGHT_BLUE   9
+#define CK_COLOR_LIGHT_GREEN  10
+#define CK_COLOR_LIGHT_CYAN   11
+#define CK_COLOR_LIGHT_RED    12
+#define CK_COLOR_PINK         13
+#define CK_COLOR_YELLOW       14
+#define CK_COLOR_WHITE        15
+
+void ck_set_color(u8 fg_color);
+void ck_reset_color(void);
 
 /* Serial port (COM1) */
 void serial_init(void);

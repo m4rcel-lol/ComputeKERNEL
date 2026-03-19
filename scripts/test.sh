@@ -40,6 +40,16 @@ if ! grep -Eq '\-isohybrid-gpt-basdat' scripts/build-iso.sh; then
     exit 1
 fi
 
+if ! grep -Eq '^insmod vga$' boot/grub/grub.cfg; then
+    echo "[test] expected GRUB vga module to be loaded for text-mode fallback"
+    exit 1
+fi
+
+if ! grep -Eq '^insmod vbe$' boot/grub/grub.cfg; then
+    echo "[test] expected GRUB vbe module to be loaded for text-mode fallback"
+    exit 1
+fi
+
 if ! grep -Eq '\bkblayout\b' kernel/shell/shell.c; then
     echo "[test] expected keyboard layout command support in shell"
     exit 1

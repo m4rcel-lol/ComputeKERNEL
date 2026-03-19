@@ -96,6 +96,15 @@ static const struct kb_layout kb_layouts[] = {
 
 #define KB_LAYOUT_COUNT ((int)(sizeof(kb_layouts) / sizeof(kb_layouts[0])))
 
+static void keyboard_sanitize_active_indices(void)
+{
+    if (kb_layout_idx < 0 || kb_layout_idx >= KB_LAYOUT_COUNT)
+        kb_layout_idx = 0;
+    if (kb_sublayout_idx < 0 ||
+        kb_sublayout_idx >= kb_layouts[kb_layout_idx].sublayout_count)
+        kb_sublayout_idx = 0;
+}
+
 static void kb_buf_push(char c)
 {
     u32 next = (kb_head + 1) % KB_BUF_SIZE;
@@ -235,11 +244,13 @@ const char *keyboard_get_sublayout_name(const char *layout, int index)
 
 const char *keyboard_current_layout(void)
 {
+    keyboard_sanitize_active_indices();
     return kb_layouts[kb_layout_idx].code;
 }
 
 const char *keyboard_current_sublayout(void)
 {
+    keyboard_sanitize_active_indices();
     return kb_layouts[kb_layout_idx].sublayouts[kb_sublayout_idx];
 }
 

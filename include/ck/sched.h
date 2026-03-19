@@ -42,6 +42,12 @@ void sched_start(void) __attribute__((noreturn));
 /* Returns a pointer to the currently running task */
 struct task *sched_current(void);
 
+/* Returns the total number of tasks (including dead) */
+int sched_num_tasks(void);
+
+/* Returns a pointer to the task at the given index, or NULL */
+struct task *sched_get_task(int idx);
+
 /* Architecture-specific context switch (boot/x86_64/switch.S) */
 void switch_to(struct task *prev, struct task *next);
 void switch_to_first(struct task *next);

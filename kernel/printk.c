@@ -5,12 +5,13 @@
 #include <stdarg.h>
 
 /* ── VGA text console ───────────────────────────────────────────────── */
-#define VGA_BASE  ((volatile unsigned short *)0xb8000)
-#define VGA_COLS  80
-#define VGA_ROWS  25
-#define VGA_ATTR  0x0f00   /* white on black */
+#define VGA_BASE        ((volatile unsigned short *)0xb8000)
+#define VGA_COLS        80
+#define VGA_ROWS        25
+#define VGA_COLOR_WHITE 0x0f   /* white on black (default) */
 
 static int col = 0, row = 0;
+static u8  vga_color = VGA_COLOR_WHITE;
 
 static void vga_update_cursor(void)
 {
@@ -31,7 +32,7 @@ static void vga_scroll(void)
             vga[r * VGA_COLS + c] = vga[(r + 1) * VGA_COLS + c];
 
     for (c = 0; c < VGA_COLS; c++)
-        vga[(VGA_ROWS - 1) * VGA_COLS + c] = VGA_ATTR | ' ';
+        vga[(VGA_ROWS - 1) * VGA_COLS + c] = ((unsigned short)VGA_COLOR_WHITE << 8) | ' ';
 
     row = VGA_ROWS - 1;
     vga_update_cursor();
@@ -43,15 +44,32 @@ void ck_early_console_init(void)
     int i;
 
     for (i = 0; i < VGA_COLS * VGA_ROWS; i++)
-        vga[i] = VGA_ATTR | ' ';
+        vga[i] = ((unsigned short)VGA_COLOR_WHITE << 8) | ' ';
     col = 0;
     row = 0;
+    vga_color = VGA_COLOR_WHITE;
     vga_update_cursor();
+}
+
+void ck_console_clear(void)
+{
+    ck_early_console_init();
+}
+
+void ck_set_color(u8 fg_color)
+{
+    vga_color = fg_color;
+}
+
+void ck_reset_color(void)
+{
+    vga_color = VGA_COLOR_WHITE;
 }
 
 void ck_putchar(char c)
 {
     volatile unsigned short *vga = VGA_BASE;
+    unsigned short attr = (unsigned short)vga_color << 8;
 
     if (c == '\n') {
         col = 0;
@@ -65,7 +83,7 @@ void ck_putchar(char c)
             row--;
             col = VGA_COLS - 1;
         }
-        vga[row * VGA_COLS + col] = VGA_ATTR | ' ';
+        vga[row * VGA_COLS + col] = attr | ' ';
         vga_update_cursor();
         return;
     } else if (c == '\t') {
@@ -75,7 +93,7 @@ void ck_putchar(char c)
             row++;
         }
     } else {
-        vga[row * VGA_COLS + col] = VGA_ATTR | (unsigned char)c;
+        vga[row * VGA_COLS + col] = attr | (unsigned char)c;
         if (++col >= VGA_COLS) {
             col = 0;
             row++;

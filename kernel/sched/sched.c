@@ -188,3 +188,15 @@ struct task *sched_current(void)
 {
     return &tasks[current_tid];
 }
+
+int sched_num_tasks(void)
+{
+    return num_tasks;
+}
+
+struct task *sched_get_task(int idx)
+{
+    if (idx < 0 || idx >= num_tasks)
+        return NULL;
+    return &tasks[idx];
+}

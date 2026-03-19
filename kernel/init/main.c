@@ -18,7 +18,7 @@ static void print_banner(void)
 {
     ck_puts("+-----------------------------------------+\n");
     ck_puts("|       ComputeKERNEL  v1.0.0             |\n");
-    ck_puts("|   64-bit x86 kernel — production build  |\n");
+    ck_puts("|   64-bit x86 kernel - production build  |\n");
     ck_puts("+-----------------------------------------+\n\n");
 }
 
@@ -193,7 +193,7 @@ void kmain(unsigned int mb2_magic, unsigned int mb2_info_phys)
     task_create("fs_demo",   task_fs_demo,   NULL, 0);
     irq_restore(irq_flags);
 
-    ck_puts("\n[boot] all subsystems online — handing off to scheduler\n\n");
+    ck_puts("\n[boot] all subsystems online - handing off to scheduler\n\n");
 
     /* 8. Yield to the scheduler (never returns) */
     sched_start();

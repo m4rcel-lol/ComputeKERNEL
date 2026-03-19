@@ -1,4 +1,5 @@
 #include <ck/kernel.h>
+#include <ck/io.h>
 #include <ck/types.h>
 #include <ck/string.h>
 #include <stdarg.h>
@@ -10,6 +11,15 @@
 #define VGA_ATTR  0x0f00   /* white on black */
 
 static int col = 0, row = 0;
+
+static void vga_update_cursor(void)
+{
+    u16 pos = (u16)(row * VGA_COLS + col);
+    outb(0x3d4, 0x0e);
+    outb(0x3d5, (u8)(pos >> 8));
+    outb(0x3d4, 0x0f);
+    outb(0x3d5, (u8)pos);
+}
 
 static void vga_scroll(void)
 {
@@ -24,6 +34,7 @@ static void vga_scroll(void)
         vga[(VGA_ROWS - 1) * VGA_COLS + c] = VGA_ATTR | ' ';
 
     row = VGA_ROWS - 1;
+    vga_update_cursor();
 }
 
 void ck_early_console_init(void)
@@ -35,6 +46,7 @@ void ck_early_console_init(void)
         vga[i] = VGA_ATTR | ' ';
     col = 0;
     row = 0;
+    vga_update_cursor();
 }
 
 void ck_putchar(char c)
@@ -61,6 +73,8 @@ void ck_putchar(char c)
     }
     if (row >= VGA_ROWS)
         vga_scroll();
+    else
+        vga_update_cursor();
 }
 
 void ck_puts(const char *s)
@@ -201,4 +215,3 @@ void ck_panic(const char *msg)
     for (;;)
         __asm__ __volatile__("cli; hlt");
 }
-

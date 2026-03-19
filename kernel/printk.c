@@ -58,6 +58,16 @@ void ck_putchar(char c)
         row++;
     } else if (c == '\r') {
         col = 0;
+    } else if (c == '\b') {
+        if (col > 0) {
+            col--;
+        } else if (row > 0) {
+            row--;
+            col = VGA_COLS - 1;
+        }
+        vga[row * VGA_COLS + col] = VGA_ATTR | ' ';
+        vga_update_cursor();
+        return;
     } else if (c == '\t') {
         col = (col + 8) & ~7;
         if (col >= VGA_COLS) {

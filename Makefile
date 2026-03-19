@@ -32,7 +32,8 @@ SRCS_C  := \
     kernel/mm/heap.c \
     kernel/sched/sched.c \
     kernel/vfs/vfs.c \
-    kernel/vfs/ramfs.c
+    kernel/vfs/ramfs.c \
+    kernel/shell/shell.c
 SRCS_S  := boot/x86_64/entry64.S \
            boot/x86_64/isr_stubs.S \
            boot/x86_64/switch.S

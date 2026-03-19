@@ -71,20 +71,46 @@ static int ramfs_readdir(struct vfs_node *node, u32 idx, char *name_out)
     return -1; /* end of directory */
 }
 
+static void ramfs_file_truncate(struct vfs_node *node)
+{
+    struct ramfs_file_data *d = (struct ramfs_file_data *)node->data;
+    node->size = 0;
+    if (d->buf && d->cap > 0)
+        memset(d->buf, 0, d->cap);
+}
+
+static void ramfs_file_destroy(struct vfs_node *node)
+{
+    struct ramfs_file_data *d = (struct ramfs_file_data *)node->data;
+    if (d->buf) kfree(d->buf);
+    kfree(d);
+    node->data = NULL;
+}
+
+static void ramfs_dir_destroy(struct vfs_node *node)
+{
+    /* Directories carry no fs-private heap data; nothing to free. */
+    (void)node;
+}
+
 static struct file_ops ramfs_file_ops = {
-    .read    = ramfs_read,
-    .write   = ramfs_write,
-    .readdir = NULL,
-    .open    = NULL,
-    .close   = NULL,
+    .read     = ramfs_read,
+    .write    = ramfs_write,
+    .readdir  = NULL,
+    .open     = NULL,
+    .close    = NULL,
+    .truncate = ramfs_file_truncate,
+    .destroy  = ramfs_file_destroy,
 };
 
 static struct file_ops ramfs_dir_ops = {
-    .read    = NULL,
-    .write   = NULL,
-    .readdir = ramfs_readdir,
-    .open    = NULL,
-    .close   = NULL,
+    .read     = NULL,
+    .write    = NULL,
+    .readdir  = ramfs_readdir,
+    .open     = NULL,
+    .close    = NULL,
+    .truncate = NULL,
+    .destroy  = ramfs_dir_destroy,
 };
 
 /* ── Node factory helpers ───────────────────────────────────────────── */

@@ -34,33 +34,64 @@ struct block_hdr {
 #define HDR_SIZE  sizeof(struct block_hdr)
 #define ALIGN16(x) ALIGN_UP(x, 16)
 
+/* Retry limit for kmalloc: one scan + one expansion + one rescan */
+#define KMALLOC_MAX_ATTEMPTS 2
+
 static struct block_hdr *free_list = NULL;
 
-static void expand_heap(void)
+/*
+ * Expand the heap by at least min_bytes of usable space.
+ * Pages are requested from the PMM one at a time; contiguous runs are
+ * merged into a single free block, non-contiguous pages each become
+ * their own block so no byte is wasted.
+ */
+static void expand_heap(size_t min_bytes)
 {
-    /* Allocate a run of contiguous pages (best-effort) */
-    u8 *base = NULL;
-    for (u64 i = 0; i < HEAP_EXPAND_PAGES; i++) {
+    /* How many pages we need to cover (header + payload) */
+    size_t n_pages = (min_bytes + HDR_SIZE + PAGE_SIZE - 1) / PAGE_SIZE;
+    if (n_pages < HEAP_EXPAND_PAGES)
+        n_pages = HEAP_EXPAND_PAGES;
+
+    u64    run_base  = 0;   /* physical base of the current contiguous run */
+    size_t run_pages = 0;   /* length of the current run in pages          */
+
+    for (size_t i = 0; i < n_pages; i++) {
         u64 phys = pmm_alloc_page();
         if (!phys) break;
-        if (base == NULL)
-            base = (u8 *)(uintptr_t)phys;
-        /* If the pages are not contiguous we just skip for now */
-    }
-    if (!base) return;
 
-    size_t total = HEAP_EXPAND_PAGES * (size_t)PAGE_SIZE - HDR_SIZE;
-    struct block_hdr *blk = (struct block_hdr *)(uintptr_t)base;
-    blk->magic = BLOCK_MAGIC_FREE;
-    blk->size  = total;
-    blk->next  = free_list;
-    free_list  = blk;
+        if (run_base == 0) {
+            run_base  = phys;
+            run_pages = 1;
+        } else if (phys == run_base + run_pages * PAGE_SIZE) {
+            /* Contiguous with the current run – extend it */
+            run_pages++;
+        } else {
+            /* Gap: commit the previous run as one free block */
+            struct block_hdr *blk = (struct block_hdr *)(uintptr_t)run_base;
+            blk->magic = BLOCK_MAGIC_FREE;
+            blk->size  = run_pages * PAGE_SIZE - HDR_SIZE;
+            blk->next  = free_list;
+            free_list  = blk;
+            /* Start a new run */
+            run_base  = phys;
+            run_pages = 1;
+        }
+    }
+
+    /* Commit the last run */
+    if (run_pages > 0) {
+        struct block_hdr *blk = (struct block_hdr *)(uintptr_t)run_base;
+        blk->magic = BLOCK_MAGIC_FREE;
+        blk->size  = run_pages * PAGE_SIZE - HDR_SIZE;
+        blk->next  = free_list;
+        free_list  = blk;
+    }
 }
 
 void heap_init(void)
 {
     free_list = NULL;
-    expand_heap();
+    expand_heap(0);   /* seed the heap with HEAP_EXPAND_PAGES pages */
 }
 
 void *kmalloc(size_t size)
@@ -70,38 +101,43 @@ void *kmalloc(size_t size)
 
     size = ALIGN16(size);
 
-    /* First-fit search */
-    struct block_hdr *prev = NULL;
-    struct block_hdr *cur  = free_list;
-    while (cur) {
-        if (cur->magic != BLOCK_MAGIC_FREE) {
-            ck_puts("[heap] CORRUPTION: bad magic in free list\n");
-            return NULL;
-        }
-        if (cur->size >= size) {
-            /* Split if leftover is large enough for a new block */
-            if (cur->size >= size + HDR_SIZE + 16) {
-                struct block_hdr *tail = (struct block_hdr *)((u8 *)cur + HDR_SIZE + size);
-                tail->magic = BLOCK_MAGIC_FREE;
-                tail->size  = cur->size - size - HDR_SIZE;
-                tail->next  = cur->next;
-                cur->size   = size;
-                cur->next   = tail;
+    /* Retry loop: expand heap once if the first scan fails */
+    for (int attempt = 0; attempt < KMALLOC_MAX_ATTEMPTS; attempt++) {
+        /* First-fit search */
+        struct block_hdr *prev = NULL;
+        struct block_hdr *cur  = free_list;
+        while (cur) {
+            if (cur->magic != BLOCK_MAGIC_FREE) {
+                ck_puts("[heap] CORRUPTION: bad magic in free list\n");
+                return NULL;
             }
-            /* Unlink from free list */
-            if (prev) prev->next = cur->next;
-            else      free_list  = cur->next;
-            cur->magic = BLOCK_MAGIC_USED;
-            cur->next  = NULL;
-            return (void *)((u8 *)cur + HDR_SIZE);
+            if (cur->size >= size) {
+                /* Split if leftover is large enough for a new block */
+                if (cur->size >= size + HDR_SIZE + 16) {
+                    struct block_hdr *tail = (struct block_hdr *)((u8 *)cur + HDR_SIZE + size);
+                    tail->magic = BLOCK_MAGIC_FREE;
+                    tail->size  = cur->size - size - HDR_SIZE;
+                    tail->next  = cur->next;
+                    cur->size   = size;
+                    cur->next   = tail;
+                }
+                /* Unlink from free list */
+                if (prev) prev->next = cur->next;
+                else      free_list  = cur->next;
+                cur->magic = BLOCK_MAGIC_USED;
+                cur->next  = NULL;
+                return (void *)((u8 *)cur + HDR_SIZE);
+            }
+            prev = cur;
+            cur  = cur->next;
         }
-        prev = cur;
-        cur  = cur->next;
+
+        /* No block large enough – expand the heap and retry once */
+        expand_heap(size);
     }
 
-    /* No block large enough – expand the heap and retry once */
-    expand_heap();
-    return kmalloc(size);
+    ck_puts("[heap] kmalloc: out of memory\n");
+    return NULL;
 }
 
 void *kzalloc(size_t size)

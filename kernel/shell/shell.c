@@ -52,6 +52,7 @@ extern u64  pmm_free_pages(void);
 /* ── Command-history ring buffer ─────────────────────────────────────── */
 #define SHELL_HIST_MAX  16
 #define SHELL_HIST_LEN  SHELL_LINE_MAX
+#define SHELL_SCROLL_TO_TOP_LINES 1000U
 
 static char shell_hist[SHELL_HIST_MAX][SHELL_HIST_LEN];
 static int  shell_hist_count = 0;
@@ -165,7 +166,7 @@ static void cmd_help(void)
     ck_puts("  netinfo               show boot-time network status\n");
     ck_puts("  ssh                   show current SSH support status\n");
     ck_puts("  mouse                 show PS/2 mouse status and position\n");
-    ck_puts("  scroll [up|down|top]  navigate shell scrollback buffer\n");
+    ck_puts("  scroll [up|down|top|bottom]  navigate shell scrollback buffer (default: up)\n");
     ck_puts("  credits               show ComputeKERNEL credits\n");
     ck_puts("  kblayout              configure keyboard layout interactively\n");
     ck_puts("  layout                alias for kblayout\n");
@@ -1036,7 +1037,7 @@ static void cmd_scroll(const char *args)
         return;
     }
     if (strcmp(args, "top") == 0) {
-        ck_console_scroll_up(1000);
+        ck_console_scroll_up(SHELL_SCROLL_TO_TOP_LINES);
         return;
     }
     if (strcmp(args, "reset") == 0 || strcmp(args, "bottom") == 0) {

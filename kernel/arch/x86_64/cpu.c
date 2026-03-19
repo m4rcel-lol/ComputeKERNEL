@@ -9,6 +9,7 @@
 #include <ck/kernel.h>
 #include <ck/io.h>
 #include <ck/types.h>
+#include <ck/mouse.h>
 
 /* Defined in pic.c / pit.c / keyboard.c */
 void pic_init(void);
@@ -18,6 +19,7 @@ void pit_init(void);
 void pit_tick(void);
 void keyboard_init(void);
 void keyboard_irq_handler(void);
+void mouse_irq_handler(void);
 void sched_tick(void);
 void irq_register(int irq, void (*handler)(void));
 
@@ -31,6 +33,11 @@ static void irq0_handler(void) /* PIT timer */
 static void irq1_handler(void) /* PS/2 keyboard */
 {
     keyboard_irq_handler();
+}
+
+static void irq12_handler(void) /* PS/2 mouse */
+{
+    mouse_irq_handler();
 }
 
 /* ── arch_init ──────────────────────────────────────────────────────── */
@@ -57,14 +64,24 @@ void arch_init(void)
     keyboard_init();
     ck_puts("OK\n");
 
+    ck_puts("[arch] initialising mouse ... ");
+    mouse_init();
+    if (mouse_is_available())
+        ck_puts("OK\n");
+    else
+        ck_puts("disabled\n");
+
     /* Register IRQ handlers */
     irq_register(0, irq0_handler);  /* timer */
     irq_register(1, irq1_handler);  /* keyboard */
+    irq_register(12, irq12_handler);/* mouse */
 
     /* Unmask timer and keyboard */
     pic_unmask_irq(0);
     pic_unmask_irq(1);
     pic_unmask_irq(2); /* cascade (required for IRQs 8-15) */
+    if (mouse_is_available())
+        pic_unmask_irq(12);
 
     ck_puts("[arch] enabling interrupts\n");
     sti();

@@ -55,4 +55,24 @@ if ! grep -Eq '\bkblayout\b' kernel/shell/shell.c; then
     exit 1
 fi
 
+if ! grep -Eq '\bcredits\b' kernel/shell/shell.c; then
+    echo "[test] expected credits command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\bnetinfo\b' kernel/shell/shell.c; then
+    echo "[test] expected netinfo command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\bmouse\b' kernel/shell/shell.c; then
+    echo "[test] expected mouse command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq 'kernel/arch/x86_64/mouse.c' Makefile; then
+    echo "[test] expected mouse driver to be compiled in kernel build"
+    exit 1
+fi
+
 echo "[test] scaffold checks passed"

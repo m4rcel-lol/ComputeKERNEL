@@ -23,12 +23,16 @@
 #define SC_EXT_DOWN  0x50
 #define SC_EXT_LEFT  0x4B
 #define SC_EXT_RIGHT 0x4D
+#define SC_EXT_PGUP  0x49
+#define SC_EXT_PGDN  0x51
 
 /* Special key codes pushed into the ring buffer (non-printable range) */
 #define KEY_UP    0x10
 #define KEY_DOWN  0x11
 #define KEY_LEFT  0x12
 #define KEY_RIGHT 0x13
+#define KEY_PGUP  0x14
+#define KEY_PGDN  0x15
 
 #define KB_BUF_SIZE 128
 
@@ -151,6 +155,8 @@ void keyboard_irq_handler(void)
             case SC_EXT_DOWN:  kb_buf_push((char)KEY_DOWN);  break;
             case SC_EXT_LEFT:  kb_buf_push((char)KEY_LEFT);  break;
             case SC_EXT_RIGHT: kb_buf_push((char)KEY_RIGHT); break;
+            case SC_EXT_PGUP:  kb_buf_push((char)KEY_PGUP);  break;
+            case SC_EXT_PGDN:  kb_buf_push((char)KEY_PGDN);  break;
             default: break;
             }
         }

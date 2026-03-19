@@ -17,6 +17,7 @@ cp boot/grub/grub.cfg    "${ISO_ROOT}/boot/grub/grub.cfg"
 mkdir -p "${ISO_ROOT}/etc"
 cat > "${ISO_ROOT}/etc/live.conf" <<'EOF'
 USER=root
+# WARNING: test-only defaults for local live media validation; do not ship to production.
 ROOT_PASSWORD_DEFAULTS=toor,password
 DEFAULT_KEYBOARD_LAYOUT=us
 EOF

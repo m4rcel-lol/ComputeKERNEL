@@ -33,6 +33,9 @@ extern u64  pmm_free_pages(void);
 #define KEY_DOWN  0x11
 #define KEY_LEFT  0x12
 #define KEY_RIGHT 0x13
+#define KEY_CTRL_C 0x03
+#define KEY_CTRL_X 0x18
+#define KEY_CTRL_V 0x16
 
 /* PIT runs at 100 Hz */
 #define PIT_HZ 100UL
@@ -794,7 +797,7 @@ static int shell_readline(char *buf, int max_len)
             sched_yield();
             continue;
         }
-        if (c == 0x03) {
+        if (c == KEY_CTRL_C) {
             ck_puts("^C\n");
             buf[0] = '\0';
             return -1;
@@ -939,7 +942,7 @@ static void cmd_sudo(const char *args)
 static void cmd_installer_style(void)
 {
     char line[SHELL_LINE_MAX];
-    ck_puts("ComputeKERNEL setup-alpine style installer (live preview)\n");
+    ck_puts("ComputeKERNEL setup-alpine-style installer (live preview)\n");
     ck_puts("Target mode: live root environment\n");
 
     ck_puts("Select keyboard layout (run 'kblayout list' for full list): ");
@@ -1101,13 +1104,13 @@ void task_shell(void *arg)
             shell_exec(shell_line);
             shell_pos = 0;
             print_prompt();
-        } else if (c == 0x03) {
+        } else if (c == KEY_CTRL_C) {
             ck_puts("^C\n");
             shell_pos = 0;
             shell_line[0] = '\0';
             shell_hist_nav = -1;
             print_prompt();
-        } else if (c == 0x18) {
+        } else if (c == KEY_CTRL_X) {
             if (shell_pos > 0) {
                 memcpy(shell_clipboard, shell_line, (size_t)shell_pos);
             }
@@ -1118,7 +1121,7 @@ void task_shell(void *arg)
             }
             shell_line[0] = '\0';
             shell_hist_nav = -1;
-        } else if (c == 0x16) {
+        } else if (c == KEY_CTRL_V) {
             int i = 0;
             while (shell_clipboard[i] && shell_pos < SHELL_LINE_MAX - 1) {
                 shell_line[shell_pos++] = shell_clipboard[i];

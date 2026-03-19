@@ -45,6 +45,9 @@ static int    kb_layout_idx = 0;
 static int    kb_sublayout_idx = 0;
 
 #define SC_LCTRL  0x1D
+#define KEY_CTRL_C 0x03
+#define KEY_CTRL_X 0x18
+#define KEY_CTRL_V 0x16
 
 /* Scan-code set 1 → ASCII (unshifted) */
 static const char sc_to_ascii[128] = {
@@ -173,12 +176,11 @@ void keyboard_irq_handler(void)
         if (!c)
             return;
         if (kb_ctrl_l || kb_ctrl_r) {
-            if (c == 'c' || c == 'C') c = 0x03;
-            else if (c == 'x' || c == 'X') c = 0x18;
-            else if (c == 'v' || c == 'V') c = 0x16;
+            if (c == 'c' || c == 'C') c = KEY_CTRL_C;
+            else if (c == 'x' || c == 'X') c = KEY_CTRL_X;
+            else if (c == 'v' || c == 'V') c = KEY_CTRL_V;
         }
-        if (c)
-            kb_buf_push(c);
+        kb_buf_push(c);
     }
 }
 

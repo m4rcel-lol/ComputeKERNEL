@@ -30,12 +30,9 @@ EOF
 # Create a bootable El Torito ISO using GRUB
 mkdir -p out
 if [ "${VM_TARGET}" = "main" ]; then
-    # Real-hardware-focused image: force GRUB console mode and hybrid USB layout.
-    # -isohybrid-gpt-basdat makes the ISO more USB-friendly on BIOS+UEFI systems.
-    MKRESCUE_XORRISO_FLAGS="-iso-level 3 -full-iso9660-filenames -volid COMPUTEKERNEL -isohybrid-gpt-basdat"
+    # Real-hardware-focused image: force GRUB console mode.
     GRUB_TERMINAL=console GRUB_TERMINAL_OUTPUT=console \
-        grub-mkrescue -o "${ISO_PATH}" "${ISO_ROOT}" \
-        -- ${MKRESCUE_XORRISO_FLAGS}
+        grub-mkrescue -o "${ISO_PATH}" "${ISO_ROOT}"
     # If available, post-process for broader BIOS/UEFI USB compatibility.
     if command -v isohybrid >/dev/null 2>&1; then
         if isohybrid --uefi "${ISO_PATH}"; then

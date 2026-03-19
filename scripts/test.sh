@@ -35,8 +35,8 @@ if ! grep -Eq 'GRUB_TERMINAL=console[[:space:]]+GRUB_TERMINAL_OUTPUT=console' sc
     exit 1
 fi
 
-if ! grep -Eq '\-isohybrid-gpt-basdat' scripts/build-iso.sh; then
-    echo "[test] expected main ISO build to request hybrid USB-compatible layout"
+if grep -Eq '\-isohybrid-gpt-basdat' scripts/build-iso.sh; then
+    echo "[test] unexpected unsupported xorriso option (-isohybrid-gpt-basdat) present in build script"
     exit 1
 fi
 

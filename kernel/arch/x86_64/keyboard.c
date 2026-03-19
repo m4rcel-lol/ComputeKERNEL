@@ -16,6 +16,18 @@
 #define SC_RSHIFT  0x36
 #define SC_CAPS    0x3A
 
+/* Extended (E0-prefixed) scan codes for arrow keys */
+#define SC_EXT_UP    0x48
+#define SC_EXT_DOWN  0x50
+#define SC_EXT_LEFT  0x4B
+#define SC_EXT_RIGHT 0x4D
+
+/* Special key codes pushed into the ring buffer (non-printable range) */
+#define KEY_UP    0x10
+#define KEY_DOWN  0x11
+#define KEY_LEFT  0x12
+#define KEY_RIGHT 0x13
+
 #define KB_BUF_SIZE 128
 
 static char   kb_buf[KB_BUF_SIZE];
@@ -24,6 +36,7 @@ static u32    kb_tail = 0;
 static int    kb_shift_l = 0; /* non-zero while Left Shift is held */
 static int    kb_shift_r = 0; /* non-zero while Right Shift is held */
 static int    kb_caps    = 0; /* Caps Lock toggle */
+static int    kb_e0      = 0; /* non-zero after receiving 0xE0 prefix */
 
 /* Scan-code set 1 → ASCII (unshifted) */
 static const char sc_to_ascii[128] = {
@@ -72,8 +85,30 @@ int keyboard_getchar(void)
 void keyboard_irq_handler(void)
 {
     u8 scan = inb(PS2_DATA);
+
+    /* Extended key prefix: next byte is an extended scan code */
+    if (scan == 0xE0) {
+        kb_e0 = 1;
+        return;
+    }
+
     int release = (scan & 0x80) != 0;
     u8  code    = scan & 0x7F;
+
+    if (kb_e0) {
+        kb_e0 = 0;
+        /* Handle extended arrow keys on press only */
+        if (!release) {
+            switch (code) {
+            case SC_EXT_UP:    kb_buf_push((char)KEY_UP);    break;
+            case SC_EXT_DOWN:  kb_buf_push((char)KEY_DOWN);  break;
+            case SC_EXT_LEFT:  kb_buf_push((char)KEY_LEFT);  break;
+            case SC_EXT_RIGHT: kb_buf_push((char)KEY_RIGHT); break;
+            default: break;
+            }
+        }
+        return;
+    }
 
     /* Track Shift keys separately so releasing one doesn't clear both */
     if (code == SC_LSHIFT) { kb_shift_l = release ? 0 : 1; return; }

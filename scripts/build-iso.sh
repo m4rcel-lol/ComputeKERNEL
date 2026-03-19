@@ -10,6 +10,10 @@ if [ "$VM_TARGET" != "main" ]; then
 fi
 
 # Assemble the ISO directory tree
+if [ -z "${ISO_ROOT}" ] || [ "${ISO_ROOT}" = "/" ]; then
+    echo "[CK] refusing to remove unsafe ISO_ROOT='${ISO_ROOT}'"
+    exit 1
+fi
 rm -rf "${ISO_ROOT}"
 mkdir -p "${ISO_ROOT}/boot/grub"
 cp out/computekernel.elf "${ISO_ROOT}/boot/computekernel.elf"
@@ -27,6 +31,7 @@ EOF
 mkdir -p out
 if [ "${VM_TARGET}" = "main" ]; then
     # Real-hardware-focused image: force GRUB console mode and hybrid USB layout.
+    # -isohybrid-gpt-basdat makes the ISO more USB-friendly on BIOS+UEFI systems.
     MKRESCUE_XORRISO_FLAGS="-iso-level 3 -full-iso9660-filenames -volid COMPUTEKERNEL -isohybrid-gpt-basdat"
     GRUB_TERMINAL=console GRUB_TERMINAL_OUTPUT=console \
         grub-mkrescue -o "${ISO_PATH}" "${ISO_ROOT}" \

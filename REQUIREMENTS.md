@@ -48,6 +48,16 @@ GRUB Legacy (0.9x) is **not** supported.
 
 ---
 
+## Real hardware USB boot notes (including Ventoy)
+
+- The main ISO is built in a real-hardware-oriented hybrid mode (`isohybrid-gpt-basdat`) and forces GRUB text console output.
+- If you still see `no console will be available to OS` through Ventoy, test with a direct-write USB first:
+  - Linux/macOS: `sudo dd if=out/computekernel.iso of=/dev/sdX bs=4M status=progress conv=fsync`
+  - Windows: use Rufus in DD mode.
+- Ventoy may chainload with GRUB settings that differ from direct boot. In that case, direct-write USB is the reference validation path.
+
+---
+
 ## VMware Workstation / Fusion
 
 | Setting | Required value |

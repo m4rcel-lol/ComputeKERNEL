@@ -10,6 +10,7 @@ if [ "$VM_TARGET" != "main" ]; then
 fi
 
 # Assemble the ISO directory tree
+rm -rf "${ISO_ROOT}"
 mkdir -p "${ISO_ROOT}/boot/grub"
 cp out/computekernel.elf "${ISO_ROOT}/boot/computekernel.elf"
 cp boot/grub/grub.cfg    "${ISO_ROOT}/boot/grub/grub.cfg"
@@ -24,6 +25,17 @@ EOF
 
 # Create a bootable El Torito ISO using GRUB
 mkdir -p out
-grub-mkrescue -o "${ISO_PATH}" "${ISO_ROOT}"
+if [ "${VM_TARGET}" = "main" ]; then
+    # Real-hardware-focused image: force GRUB console mode and hybrid USB layout.
+    GRUB_TERMINAL=console GRUB_TERMINAL_OUTPUT=console \
+        grub-mkrescue -o "${ISO_PATH}" "${ISO_ROOT}" \
+        -- -iso-level 3 -full-iso9660-filenames -volid COMPUTEKERNEL -isohybrid-gpt-basdat
+    # If available, post-process for broader BIOS/UEFI USB compatibility.
+    if command -v isohybrid >/dev/null 2>&1; then
+        isohybrid --uefi "${ISO_PATH}" || isohybrid "${ISO_PATH}"
+    fi
+else
+    grub-mkrescue -o "${ISO_PATH}" "${ISO_ROOT}"
+fi
 
 echo "[CK] ISO → ${ISO_PATH}"

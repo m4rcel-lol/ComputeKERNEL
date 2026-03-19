@@ -28,6 +28,12 @@ extern u64  pmm_free_pages(void);
 #define ASCII_SPACE 0x20
 #define ASCII_DEL   0x7f
 
+/* Special key codes (must match keyboard.c definitions) */
+#define KEY_UP    0x10
+#define KEY_DOWN  0x11
+#define KEY_LEFT  0x12
+#define KEY_RIGHT 0x13
+
 /* PIT runs at 100 Hz */
 #define PIT_HZ 100UL
 
@@ -45,6 +51,11 @@ static char shell_hist[SHELL_HIST_MAX][SHELL_HIST_LEN];
 static int  shell_hist_count = 0;
 static int  shell_hist_head  = 0;   /* next write slot */
 
+/* ── History navigation state ────────────────────────────────────────── */
+/* -1 means not currently navigating; 0 = most recent entry, 1 = next older, … */
+static int  shell_hist_nav  = -1;
+static char shell_line_saved[SHELL_LINE_MAX]; /* line saved before nav started */
+
 /* ── Current working directory ───────────────────────────────────────── */
 static char shell_cwd[VFS_NAME_MAX] = "/";
 
@@ -58,6 +69,20 @@ static void hist_add(const char *line)
     shell_hist_head = (shell_hist_head + 1) % SHELL_HIST_MAX;
     if (shell_hist_count < SHELL_HIST_MAX)
         shell_hist_count++;
+}
+
+/* Return the history entry at nav offset (0 = most recent). NULL if out of range. */
+static const char *hist_get(int offset)
+{
+    if (offset < 0 || offset >= shell_hist_count)
+        return NULL;
+    /*
+     * Multiply by 2 before adding the offset so the intermediate value is
+     * always positive even when shell_hist_head == 0, avoiding a negative
+     * result before the final modulo.
+     */
+    int idx = (shell_hist_head - 1 - offset + SHELL_HIST_MAX * 2) % SHELL_HIST_MAX;
+    return shell_hist[idx];
 }
 
 /* ── Path helper ─────────────────────────────────────────────────────── */
@@ -124,6 +149,7 @@ static void cmd_help(void)
     ck_puts("  sleep <n>             sleep for n seconds\n");
     ck_puts("  reboot                reboot the system\n");
     ck_puts("  halt                  halt the system\n");
+    ck_puts("  setup                 display hardware installation guide\n");
 }
 
 static void cmd_clear(void)
@@ -138,13 +164,19 @@ static void cmd_uname(void)
 
 static void cmd_fastfetch(void)
 {
-    u64 free_pages = pmm_free_pages();
-    u64 ticks      = pit_get_ticks();
-    u64 uptime_s   = ticks / PIT_HZ;
+    u64 free_pages  = pmm_free_pages();
+    u64 total_pages = pmm_total_pages();
+    u64 used_pages  = total_pages - free_pages;
+    u64 ticks       = pit_get_ticks();
+    u64 uptime_s    = ticks / PIT_HZ;
+    u64 uptime_m    = uptime_s / 60;
+    u64 uptime_h    = uptime_m / 60;
 
     ck_puts("\n");
+
+    /* Line 1: art row 1 + user@hostname */
     ck_set_color(CK_COLOR_LIGHT_GREEN);
-    ck_puts("   .---.           ");
+    ck_puts("  ##    ##         ");
     ck_set_color(CK_COLOR_LIGHT_RED);
     ck_puts(SHELL_USER);
     ck_set_color(CK_COLOR_YELLOW);
@@ -154,30 +186,51 @@ static void cmd_fastfetch(void)
     ck_reset_color();
     ck_puts("\n");
 
+    /* Line 2: art row 2 + separator */
     ck_set_color(CK_COLOR_LIGHT_GREEN);
-    ck_puts("  /     \\          ");
+    ck_puts("  ##   ##          ");
     ck_reset_color();
     ck_puts("-----------------------------\n");
 
+    /* Line 3: art row 3 + OS */
     ck_set_color(CK_COLOR_LIGHT_GREEN);
-    ck_puts(" | () () |         ");
+    ck_puts("  ## ##            ");
     ck_reset_color();
-    ck_puts("OS:      ComputeKERNEL 1.0.0\n");
+    ck_puts("OS:       ComputeKERNEL 1.0.0\n");
 
+    /* Line 4: art row 4 + Arch */
     ck_set_color(CK_COLOR_LIGHT_GREEN);
-    ck_puts("  \\  ^  /          ");
+    ck_puts("  ####             ");
     ck_reset_color();
-    ck_puts("Arch:    x86_64\n");
+    ck_puts("Arch:     x86_64\n");
 
+    /* Line 5: art row 5 + Kernel */
     ck_set_color(CK_COLOR_LIGHT_GREEN);
-    ck_puts("   '---'           ");
+    ck_puts("  ## ##            ");
     ck_reset_color();
-    ck_puts("Kernel:  ComputeKERNEL v1.0.0\n");
+    ck_puts("Kernel:   ComputeKERNEL v1.0.0\n");
 
-    ck_puts("                   Shell:   cksh 1.0.0\n");
-    ck_printk("                   Uptime:  %llu seconds\n", uptime_s);
-    ck_printk("                   Memory:  %llu pages free (%llu KiB)\n",
-              free_pages, free_pages * 4ULL);
+    /* Line 6: art row 6 + CPU */
+    ck_set_color(CK_COLOR_LIGHT_GREEN);
+    ck_puts("  ##   ##          ");
+    ck_reset_color();
+    ck_puts("CPU:      x86_64\n");
+
+    /* Line 7: art row 7 + Shell */
+    ck_set_color(CK_COLOR_LIGHT_GREEN);
+    ck_puts("  ##    ##         ");
+    ck_reset_color();
+    ck_puts("Shell:    cksh 1.0.0\n");
+
+    /* Lines 8+ : no art, just info */
+    ck_puts("                   Hostname: " SHELL_HOSTNAME "\n");
+    ck_puts("                   Terminal: VGA 80x25\n");
+    ck_printk("                   Uptime:   %llu:%02llu:%02llu\n",
+              uptime_h, uptime_m % 60, uptime_s % 60);
+    ck_printk("                   Memory:   %llu / %llu KiB used\n",
+              used_pages * 4ULL, total_pages * 4ULL);
+    ck_printk("                   Free:     %llu KiB (%llu pages)\n",
+              free_pages * 4ULL, free_pages);
     ck_puts("\n");
 }
 
@@ -673,6 +726,48 @@ static void cmd_halt(void)
     for (;;) {}
 }
 
+static void cmd_setup(void)
+{
+    ck_set_color(CK_COLOR_LIGHT_CYAN);
+    ck_puts("ComputeKERNEL Hardware Setup Guide\n");
+    ck_reset_color();
+    ck_puts("===================================\n\n");
+
+    ck_set_color(CK_COLOR_YELLOW);
+    ck_puts("Requirements:\n");
+    ck_reset_color();
+    ck_puts("  - x86_64 compatible PC (64-bit CPU)\n");
+    ck_puts("  - At least 32 MiB of RAM\n");
+    ck_puts("  - USB drive (1 GiB or larger)\n");
+    ck_puts("  - BIOS or UEFI with legacy/CSM boot support\n\n");
+
+    ck_set_color(CK_COLOR_YELLOW);
+    ck_puts("Steps to boot on real hardware:\n");
+    ck_reset_color();
+    ck_puts("  1. Download the ComputeKERNEL ISO from the project releases page.\n");
+    ck_puts("  2. Flash the ISO to a USB drive:\n");
+    ck_set_color(CK_COLOR_LIGHT_GREEN);
+    ck_puts("       Linux/macOS: ");
+    ck_reset_color();
+    ck_puts("sudo dd if=computekernel.iso of=/dev/sdX bs=4M status=progress\n");
+    ck_set_color(CK_COLOR_LIGHT_GREEN);
+    ck_puts("       Windows:     ");
+    ck_reset_color();
+    ck_puts("use Rufus (https://rufus.ie) - select ISO, write in DD mode\n");
+    ck_puts("  3. Insert the USB drive into the target machine.\n");
+    ck_puts("  4. Enter BIOS/UEFI firmware setup (usually F2, F12, DEL, or ESC).\n");
+    ck_puts("  5. Set the boot order so the USB drive boots first.\n");
+    ck_puts("  6. Disable Secure Boot if it is enabled.\n");
+    ck_puts("  7. Save settings and reboot - ComputeKERNEL will load from USB.\n\n");
+
+    ck_set_color(CK_COLOR_YELLOW);
+    ck_puts("Notes:\n");
+    ck_reset_color();
+    ck_puts("  - ComputeKERNEL runs entirely from RAM; no disk installation needed.\n");
+    ck_puts("  - All files and changes are lost when the machine is powered off.\n");
+    ck_puts("  - Use 'reboot' or 'halt' to cleanly exit the kernel.\n\n");
+}
+
 static void cmd_echo(const char *rest)
 {
     if (rest && *rest)
@@ -733,6 +828,7 @@ static void shell_exec(char *line)
     else if (strcmp(line, "reboot")    == 0) cmd_reboot();
     else if (strcmp(line, "halt")      == 0) cmd_halt();
     else if (strcmp(line, "echo")      == 0) cmd_echo(args);
+    else if (strcmp(line, "setup")     == 0) cmd_setup();
     else
         ck_printk("cksh: %s: command not found\n", line);
 }
@@ -795,11 +891,67 @@ void task_shell(void *arg)
             ck_putchar('\n');
             shell_line[shell_pos] = '\0';
             hist_add(shell_line);
+            shell_hist_nav = -1;
             shell_exec(shell_line);
             shell_pos = 0;
             print_prompt();
+        } else if (c == KEY_UP) {
+            /* Navigate to older history entry */
+            int next_nav = (shell_hist_nav == -1) ? 0 : shell_hist_nav + 1;
+            if (next_nav < shell_hist_count) {
+                if (shell_hist_nav == -1) {
+                    /* Save the line being typed before navigating */
+                    strncpy(shell_line_saved, shell_line, SHELL_LINE_MAX - 1);
+                    shell_line_saved[SHELL_LINE_MAX - 1] = '\0';
+                }
+                shell_hist_nav = next_nav;
+                /* Clear current line on screen */
+                while (shell_pos > 0) {
+                    shell_pos--;
+                    ck_putchar('\b');
+                }
+                /* Load and display history entry */
+                const char *entry = hist_get(shell_hist_nav);
+                if (entry) {
+                    strncpy(shell_line, entry, SHELL_LINE_MAX - 1);
+                    shell_line[SHELL_LINE_MAX - 1] = '\0';
+                    shell_pos = (int)strlen(shell_line);
+                    ck_puts(shell_line);
+                }
+            }
+        } else if (c == KEY_DOWN) {
+            /* Navigate to newer history entry (or restore saved line) */
+            if (shell_hist_nav > 0) {
+                shell_hist_nav--;
+                /* Clear current line on screen */
+                while (shell_pos > 0) {
+                    shell_pos--;
+                    ck_putchar('\b');
+                }
+                const char *entry = hist_get(shell_hist_nav);
+                if (entry) {
+                    strncpy(shell_line, entry, SHELL_LINE_MAX - 1);
+                    shell_line[SHELL_LINE_MAX - 1] = '\0';
+                    shell_pos = (int)strlen(shell_line);
+                    ck_puts(shell_line);
+                }
+            } else if (shell_hist_nav == 0) {
+                /* Restore line that was being typed */
+                shell_hist_nav = -1;
+                while (shell_pos > 0) {
+                    shell_pos--;
+                    ck_putchar('\b');
+                }
+                strncpy(shell_line, shell_line_saved, SHELL_LINE_MAX - 1);
+                shell_line[SHELL_LINE_MAX - 1] = '\0';
+                shell_pos = (int)strlen(shell_line);
+                ck_puts(shell_line);
+            }
         } else if ((unsigned char)c >= ASCII_SPACE && (unsigned char)c < ASCII_DEL) {
             if (shell_pos < SHELL_LINE_MAX - 1) {
+                /* Any printable character cancels history navigation */
+                if (shell_hist_nav != -1)
+                    shell_hist_nav = -1;
                 shell_line[shell_pos++] = (char)c;
                 ck_putchar(c);
             }

@@ -1,4 +1,4 @@
-name: Build Main Bootable ISO
+name: Build Main Live/Setup ISO
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             gcc binutils grub-pc-bin grub-common xorriso mtools
 
-      - name: Build kernel and main ISO
+      - name: Build kernel and live/setup ISO
         run: make iso
 
       - name: Verify ISO is a valid El Torito image
@@ -34,6 +34,6 @@ jobs:
       - name: Upload main ISO artifact
         uses: actions/upload-artifact@v4
         with:
-          name: computekernel-main-iso
+          name: computekernel-main-live-setup-iso
           path: out/computekernel.iso
           if-no-files-found: error

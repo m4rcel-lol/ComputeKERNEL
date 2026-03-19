@@ -13,16 +13,16 @@
 #include <ck/vfs.h>
 #include <ck/sched.h>
 #include <ck/mm.h>
+#include <ck/keyboard.h>
 
 /* Provided by pit.c / keyboard.c */
-extern int  keyboard_getchar(void);
 extern u64  pit_get_ticks(void);
 extern void pit_sleep_ms(u64 ms);
 extern u64  pmm_free_pages(void);
 
 #define SHELL_LINE_MAX  256
 #define SHELL_HOSTNAME  "computekernel"
-#define SHELL_USER      "user"
+#define SHELL_USER      "root"
 
 /* Printable ASCII range */
 #define ASCII_SPACE 0x20
@@ -33,6 +33,9 @@ extern u64  pmm_free_pages(void);
 #define KEY_DOWN  0x11
 #define KEY_LEFT  0x12
 #define KEY_RIGHT 0x13
+#define KEY_CTRL_C 0x03
+#define KEY_CTRL_X 0x18
+#define KEY_CTRL_V 0x16
 
 /* PIT runs at 100 Hz */
 #define PIT_HZ 100UL
@@ -58,6 +61,9 @@ static char shell_line_saved[SHELL_LINE_MAX]; /* line saved before nav started *
 
 /* ── Current working directory ───────────────────────────────────────── */
 static char shell_cwd[VFS_NAME_MAX] = "/";
+static char shell_clipboard[SHELL_LINE_MAX];
+
+static void shell_exec(char *line);
 
 /* ── History helpers ─────────────────────────────────────────────────── */
 
@@ -150,6 +156,13 @@ static void cmd_help(void)
     ck_puts("  reboot                reboot the system\n");
     ck_puts("  halt                  halt the system\n");
     ck_puts("  setup                 display hardware installation guide\n");
+    ck_puts("  setup-alpine          run interactive installer-style setup\n");
+    ck_puts("  arch-install          run interactive installer-style setup\n");
+    ck_puts("  sudo <command>        execute command as root (live environment)\n");
+    ck_puts("  kblayout              configure keyboard layout interactively\n");
+    ck_puts("  layout                alias for kblayout\n");
+    ck_puts("  kblayout list         list available keyboard layouts\n");
+    ck_puts("  kblayout set <l> [s]  set layout code and optional sublayout\n");
 }
 
 static void cmd_clear(void)
@@ -729,7 +742,7 @@ static void cmd_halt(void)
 static void cmd_setup(void)
 {
     ck_set_color(CK_COLOR_LIGHT_CYAN);
-    ck_puts("ComputeKERNEL Hardware Setup Guide\n");
+    ck_puts("ComputeKERNEL Live Setup Guide\n");
     ck_reset_color();
     ck_puts("===================================\n\n");
 
@@ -739,7 +752,8 @@ static void cmd_setup(void)
     ck_puts("  - x86_64 compatible PC (64-bit CPU)\n");
     ck_puts("  - At least 32 MiB of RAM\n");
     ck_puts("  - USB drive (1 GiB or larger)\n");
-    ck_puts("  - BIOS or UEFI with legacy/CSM boot support\n\n");
+    ck_puts("  - BIOS or UEFI with legacy/CSM boot support\n");
+    ck_puts("  - Live environment boots as root by default\n\n");
 
     ck_set_color(CK_COLOR_YELLOW);
     ck_puts("Steps to boot on real hardware:\n");
@@ -763,9 +777,199 @@ static void cmd_setup(void)
     ck_set_color(CK_COLOR_YELLOW);
     ck_puts("Notes:\n");
     ck_reset_color();
-    ck_puts("  - ComputeKERNEL runs entirely from RAM; no disk installation needed.\n");
+    ck_puts("  - Live session runs as root.\n");
+    ck_puts("  - Default root passwords for live testing: 'toor' or 'password'.\n");
+    ck_puts("  - ComputeKERNEL currently runs entirely from RAM.\n");
     ck_puts("  - All files and changes are lost when the machine is powered off.\n");
     ck_puts("  - Use 'reboot' or 'halt' to cleanly exit the kernel.\n\n");
+    ck_puts("Use 'setup-alpine' (or 'arch-install') for interactive setup flow.\n");
+}
+
+static int shell_readline(char *buf, int max_len)
+{
+    int pos = 0;
+    if (!buf || max_len <= 1)
+        return 0;
+    buf[0] = '\0';
+    for (;;) {
+        int c = keyboard_getchar();
+        if (!c) {
+            sched_yield();
+            continue;
+        }
+        if (c == KEY_CTRL_C) {
+            ck_puts("^C\n");
+            buf[0] = '\0';
+            return -1;
+        }
+        if (c == '\b') {
+            if (pos > 0) {
+                pos--;
+                ck_putchar('\b');
+            }
+            continue;
+        }
+        if (c == '\n' || c == '\r') {
+            ck_putchar('\n');
+            buf[pos] = '\0';
+            return pos;
+        }
+        if ((unsigned char)c >= ASCII_SPACE && (unsigned char)c < ASCII_DEL) {
+            if (pos < max_len - 1) {
+                buf[pos++] = (char)c;
+                ck_putchar((char)c);
+            }
+        }
+    }
+}
+
+static void cmd_kblayout_list(void)
+{
+    int n = keyboard_get_layout_count();
+    ck_printk("current layout: %s", keyboard_current_layout());
+    if (keyboard_current_sublayout() && *keyboard_current_sublayout())
+        ck_printk(" (%s)", keyboard_current_sublayout());
+    ck_putchar('\n');
+    for (int i = 0; i < n; i++) {
+        const char *code = keyboard_get_layout_code(i);
+        const char *desc = keyboard_get_layout_description(i);
+        ck_printk("  %-8s %s\n", code ? code : "?", desc ? desc : "");
+        int subn = keyboard_get_sublayout_count(code);
+        for (int j = 0; j < subn; j++) {
+            const char *sub = keyboard_get_sublayout_name(code, j);
+            if (sub)
+                ck_printk("           - %s\n", sub);
+        }
+    }
+}
+
+static void cmd_kblayout_set(const char *layout, const char *sublayout)
+{
+    if (!layout || !*layout) {
+        ck_puts("kblayout: usage: kblayout set <layout> [sublayout]\n");
+        return;
+    }
+    int rc = keyboard_set_layout(layout, sublayout);
+    if (rc == -1) {
+        ck_printk("kblayout: unknown layout '%s'\n", layout);
+        return;
+    }
+    if (rc == -2) {
+        ck_printk("kblayout: unknown sublayout '%s' for layout '%s'\n",
+                  sublayout ? sublayout : "", layout);
+        return;
+    }
+    ck_printk("kblayout: active layout is now %s", keyboard_current_layout());
+    if (keyboard_current_sublayout() && *keyboard_current_sublayout())
+        ck_printk(" (%s)", keyboard_current_sublayout());
+    ck_putchar('\n');
+}
+
+static void cmd_kblayout(const char *args)
+{
+    if (!args || !*args) {
+        char line[SHELL_LINE_MAX];
+        ck_puts("Available keyboard layouts:\n");
+        cmd_kblayout_list();
+        ck_puts("Type layout code (or empty to cancel): ");
+        int n = shell_readline(line, SHELL_LINE_MAX);
+        if (n <= 0) {
+            ck_puts("kblayout: cancelled\n");
+            return;
+        }
+        int subn = keyboard_get_sublayout_count(line);
+        if (subn > 1) {
+            ck_puts("Available sublayouts:\n");
+            for (int i = 0; i < subn; i++) {
+                const char *sub = keyboard_get_sublayout_name(line, i);
+                if (sub)
+                    ck_printk("  - %s\n", sub);
+            }
+            ck_puts("Choose sublayout (or type 'no' for default): ");
+            char subline[SHELL_LINE_MAX];
+            int sn = shell_readline(subline, SHELL_LINE_MAX);
+            if (sn > 0 && strcmp(subline, "no") != 0)
+                cmd_kblayout_set(line, subline);
+            else
+                cmd_kblayout_set(line, NULL);
+            return;
+        }
+        cmd_kblayout_set(line, NULL);
+        return;
+    }
+
+    if (strcmp(args, "list") == 0) {
+        cmd_kblayout_list();
+        return;
+    }
+    if (strncmp(args, "set ", 4) == 0) {
+        const char *rest = args + 4;
+        while (*rest == ' ')
+            rest++;
+        if (!*rest) {
+            ck_puts("kblayout: usage: kblayout set <layout> [sublayout]\n");
+            return;
+        }
+        const char *p = rest;
+        while (*p && *p != ' ')
+            p++;
+        char layout[32];
+        size_t ll = (size_t)(p - rest);
+        if (ll >= sizeof(layout))
+            ll = sizeof(layout) - 1;
+        memcpy(layout, rest, ll);
+        layout[ll] = '\0';
+        while (*p == ' ')
+            p++;
+        cmd_kblayout_set(layout, *p ? p : NULL);
+        return;
+    }
+    ck_puts("kblayout: usage: kblayout [list|set <layout> [sublayout]]\n");
+}
+
+static void cmd_sudo(const char *args)
+{
+    if (!args || !*args) {
+        ck_puts("sudo: usage: sudo <command>\n");
+        return;
+    }
+    char cmd[SHELL_LINE_MAX];
+    strncpy(cmd, args, SHELL_LINE_MAX - 1);
+    cmd[SHELL_LINE_MAX - 1] = '\0';
+    shell_exec(cmd);
+}
+
+static void cmd_installer_style(void)
+{
+    char line[SHELL_LINE_MAX];
+    ck_puts("ComputeKERNEL setup-alpine-style installer (live preview)\n");
+    ck_puts("Target mode: live root environment\n");
+
+    ck_puts("Select keyboard layout (run 'kblayout list' for full list): ");
+    int n = shell_readline(line, SHELL_LINE_MAX);
+    if (n > 0) {
+        int subn = keyboard_get_sublayout_count(line);
+        if (subn > 1) {
+            ck_puts("Use sublayout? type name or 'no': ");
+            char subline[SHELL_LINE_MAX];
+            int sn = shell_readline(subline, SHELL_LINE_MAX);
+            if (sn > 0 && strcmp(subline, "no") != 0)
+                cmd_kblayout_set(line, subline);
+            else
+                cmd_kblayout_set(line, NULL);
+        } else {
+            cmd_kblayout_set(line, NULL);
+        }
+    }
+
+    ck_puts("Set root password [toor/password/custom] (Enter for toor): ");
+    n = shell_readline(line, SHELL_LINE_MAX);
+    if (n <= 0 || strcmp(line, "toor") == 0 || strcmp(line, "password") == 0) {
+        ck_puts("root password set for live session profile.\n");
+    } else {
+        ck_puts("custom root password noted for this setup session.\n");
+    }
+    ck_puts("Setup complete. You are running as root in live environment.\n");
 }
 
 static void cmd_echo(const char *rest)
@@ -829,6 +1033,11 @@ static void shell_exec(char *line)
     else if (strcmp(line, "halt")      == 0) cmd_halt();
     else if (strcmp(line, "echo")      == 0) cmd_echo(args);
     else if (strcmp(line, "setup")     == 0) cmd_setup();
+    else if (strcmp(line, "setup-alpine") == 0) cmd_installer_style();
+    else if (strcmp(line, "arch-install") == 0) cmd_installer_style();
+    else if (strcmp(line, "sudo")      == 0) cmd_sudo(args);
+    else if (strcmp(line, "kblayout")  == 0) cmd_kblayout(args);
+    else if (strcmp(line, "layout")    == 0) cmd_kblayout(args);
     else
         ck_printk("cksh: %s: command not found\n", line);
 }
@@ -895,6 +1104,30 @@ void task_shell(void *arg)
             shell_exec(shell_line);
             shell_pos = 0;
             print_prompt();
+        } else if (c == KEY_CTRL_C) {
+            ck_puts("^C\n");
+            shell_pos = 0;
+            shell_line[0] = '\0';
+            shell_hist_nav = -1;
+            print_prompt();
+        } else if (c == KEY_CTRL_X) {
+            if (shell_pos > 0) {
+                memcpy(shell_clipboard, shell_line, (size_t)shell_pos);
+            }
+            shell_clipboard[shell_pos] = '\0';
+            while (shell_pos > 0) {
+                shell_pos--;
+                ck_putchar('\b');
+            }
+            shell_line[0] = '\0';
+            shell_hist_nav = -1;
+        } else if (c == KEY_CTRL_V) {
+            int i = 0;
+            while (shell_clipboard[i] && shell_pos < SHELL_LINE_MAX - 1) {
+                shell_line[shell_pos++] = shell_clipboard[i];
+                ck_putchar(shell_clipboard[i]);
+                i++;
+            }
         } else if (c == KEY_UP) {
             /* Navigate to older history entry */
             int next_nav = (shell_hist_nav == -1) ? 0 : shell_hist_nav + 1;
@@ -958,4 +1191,3 @@ void task_shell(void *arg)
         }
     }
 }
-

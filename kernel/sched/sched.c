@@ -175,8 +175,7 @@ void sched_start(void)
     sched_started = 1;
 
     switch_to_first(&tasks[next_tid]);
-
-    for (;;) __asm__ __volatile__("cli; hlt");
+    __builtin_unreachable();
 }
 
 /* Called from the PIT IRQ0 handler */

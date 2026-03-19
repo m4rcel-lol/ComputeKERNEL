@@ -51,6 +51,7 @@ switch_to:
 .global switch_to_first
 switch_to_first:
     /* First switch: no previous task context to save */
+    /* rdi = next task pointer, next->rsp is at offset 0 */
     movq  (%rdi), %rsp
 
     /* Restore callee-saved registers of first task */

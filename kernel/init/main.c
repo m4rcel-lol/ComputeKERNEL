@@ -197,7 +197,4 @@ void kmain(unsigned int mb2_magic, unsigned int mb2_info_phys)
 
     /* 8. Yield to the scheduler (never returns) */
     sched_start();
-
-    /* Should never reach here */
-    arch_halt();
 }

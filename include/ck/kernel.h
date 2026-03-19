@@ -55,6 +55,18 @@ void sched_yield(void);
 /* ── Virtual filesystem ─────────────────────────────────────────────── */
 void vfs_init(void);
 
+/* ── Keyboard layout API ─────────────────────────────────────────────── */
+int         keyboard_get_layout_count(void);
+const char *keyboard_get_layout_name(void);
+const char *keyboard_get_layout_name_at(int i);
+const char *keyboard_get_layout_desc_at(int i);
+int         keyboard_get_sublayout_count_at(int layout_i);
+const char *keyboard_get_sublayout_name_at(int layout_i, int sub_i);
+const char *keyboard_get_sublayout_desc_at(int layout_i, int sub_i);
+int         keyboard_get_sublayout_idx(void);
+int         keyboard_set_layout(const char *name);
+void        keyboard_set_sublayout(int sub_i);
+
 /* ── Kernel main entry (multiboot2) ─────────────────────────────────── */
 void kmain(unsigned int mb2_magic, unsigned int mb2_info_phys);
 

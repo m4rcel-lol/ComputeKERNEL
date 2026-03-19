@@ -119,6 +119,11 @@ int vfs_open(const char *path, int flags)
     /* Allocate fd */
     for (int i = 0; i < VFS_FD_MAX; i++) {
         if (!fdt[i].used) {
+            /* Handle O_TRUNC for existing files */
+            if ((flags & O_TRUNC) && node->type == VFS_FILE) {
+                if (node->ops && node->ops->truncate)
+                    node->ops->truncate(node);
+            }
             fdt[i].node   = node;
             fdt[i].flags  = flags;
             fdt[i].offset = (flags & O_APPEND) ? node->size : 0;
@@ -173,4 +178,117 @@ int vfs_readdir(int fd, u32 idx, char *name_out)
     if (!f->node->ops || !f->node->ops->readdir)
         return -1;
     return f->node->ops->readdir(f->node, idx, name_out);
+}
+
+/* ── Path helper (shared by mkdir / unlink / rename) ───────────────── */
+
+/* Split an absolute path into parent path + last component name.
+   parent_path must be at least VFS_NAME_MAX bytes.
+   Returns a pointer into 'path' for the name part, or NULL on error. */
+static const char *split_parent(const char *path,
+                                char *parent_path)
+{
+    if (!path || path[0] != '/')
+        return NULL;
+
+    const char *last = path + strlen(path);
+    while (last > path && *last != '/') last--;
+    /* 'last' now points to the '/' before the final component */
+
+    const char *name = last + 1;
+    if (*name == '\0')
+        return NULL;  /* trailing slash or root */
+
+    size_t plen = (size_t)(last - path);
+    if (plen == 0) {
+        parent_path[0] = '/'; parent_path[1] = '\0';
+    } else {
+        if (plen >= VFS_NAME_MAX)
+            return NULL;
+        strncpy(parent_path, path, plen);
+        parent_path[plen] = '\0';
+    }
+    return name;
+}
+
+/* ── mkdir / unlink / rename ────────────────────────────────────────── */
+
+int vfs_mkdir(const char *path)
+{
+    char parent_path[VFS_NAME_MAX];
+    const char *name = split_parent(path, parent_path);
+    if (!name) return -1;
+
+    if (vfs_lookup(path)) return -1;  /* already exists */
+
+    struct vfs_node *parent = vfs_lookup(parent_path);
+    if (!parent || parent->type != VFS_DIR) return -1;
+
+    struct vfs_node *dir = ramfs_create_dir(parent, name);
+    return dir ? 0 : -1;
+}
+
+int vfs_unlink(const char *path)
+{
+    struct vfs_node *node = vfs_lookup(path);
+    if (!node) return -1;
+    if (node == vfs_root) return -1;  /* cannot remove root */
+    if (node->type == VFS_DIR && node->child) return -1;  /* not empty */
+
+    struct vfs_node *parent = node->parent;
+    if (!parent) return -1;
+
+    /* Unlink from parent's child list */
+    if (parent->child == node) {
+        parent->child = node->sibling;
+    } else {
+        struct vfs_node *prev = parent->child;
+        while (prev && prev->sibling != node) prev = prev->sibling;
+        if (!prev) return -1;
+        prev->sibling = node->sibling;
+    }
+
+    /* Free fs-private data */
+    if (node->ops && node->ops->destroy)
+        node->ops->destroy(node);
+
+    kfree(node);
+    return 0;
+}
+
+int vfs_rename(const char *src, const char *dst)
+{
+    struct vfs_node *node = vfs_lookup(src);
+    if (!node) return -1;
+    if (node == vfs_root) return -1;
+    if (vfs_lookup(dst)) return -1;  /* destination already exists */
+
+    char dst_parent_path[VFS_NAME_MAX];
+    const char *new_name = split_parent(dst, dst_parent_path);
+    if (!new_name) return -1;
+
+    struct vfs_node *new_parent = vfs_lookup(dst_parent_path);
+    if (!new_parent || new_parent->type != VFS_DIR) return -1;
+
+    /* Remove from old parent */
+    struct vfs_node *old_parent = node->parent;
+    if (!old_parent) return -1;
+    if (old_parent->child == node) {
+        old_parent->child = node->sibling;
+    } else {
+        struct vfs_node *prev = old_parent->child;
+        while (prev && prev->sibling != node) prev = prev->sibling;
+        if (!prev) return -1;
+        prev->sibling = node->sibling;
+    }
+
+    /* Update name */
+    strncpy(node->name, new_name, VFS_NAME_MAX - 1);
+    node->name[VFS_NAME_MAX - 1] = '\0';
+
+    /* Attach to new parent */
+    node->sibling  = new_parent->child;
+    new_parent->child = node;
+    node->parent   = new_parent;
+    return 0;
 }

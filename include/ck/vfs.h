@@ -25,6 +25,8 @@ struct file_ops {
     int     (*readdir)(struct vfs_node *node, u32 idx, char *name_out);
     int     (*open)(struct vfs_node *node, int flags);
     int     (*close)(struct vfs_node *node);
+    void    (*truncate)(struct vfs_node *node);    /* set file size to 0   */
+    void    (*destroy)(struct vfs_node *node);     /* free fs-private data */
 };
 
 struct vfs_node {
@@ -61,6 +63,15 @@ int    vfs_readdir(int fd, u32 idx, char *name_out);
 
 /* Look up a node by absolute path; returns NULL if not found */
 struct vfs_node *vfs_lookup(const char *path);
+
+/* Create a directory at the given absolute path */
+int vfs_mkdir(const char *path);
+
+/* Remove a file or empty directory */
+int vfs_unlink(const char *path);
+
+/* Rename / move a node from src to dst absolute path */
+int vfs_rename(const char *src, const char *dst);
 
 /* ── RAM filesystem ─────────────────────────────────────────────────── */
 struct vfs_node *ramfs_create_root(void);

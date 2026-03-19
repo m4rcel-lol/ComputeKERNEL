@@ -16,6 +16,11 @@
 
 #define DEFAULT_STACK_SIZE (16 * 1024)
 
+/* Low-level assembly helpers (boot/x86_64/switch.S) */
+extern void switch_to(struct task *prev, struct task *next);
+extern void switch_to_first(struct task *next);
+extern void task_trampoline(void);
+
 static struct task tasks[MAX_TASKS];
 static int         num_tasks  = 0;
 static int         current_tid = 0;    /* index into tasks[] */
@@ -80,44 +85,37 @@ int task_create(const char *name, task_func_t fn, void *arg, size_t stack_size)
     t->stack_top  = (u64)(uintptr_t)(stack + stack_size);
     strncpy(t->name, name, TASK_NAME_LEN - 1);
 
-    /*
-     * Set up an initial stack frame so that when switch_to() first
-     * 'returns' into this task, it lands on task_entry() which then
-     * calls fn(arg).
-     *
-     * Stack layout (from top, 8 bytes each):
-     *   [rsp+0]  = address of task_entry (popped as return address by ret)
-     *   callee-saved regs (6 × 8 = 48 bytes) set to 0/arg
-     *
-     * switch_to() pops: rbp, rbx, r12, r13, r14, r15 then ret.
-     */
     u64 *sp = (u64 *)(uintptr_t)t->stack_top;
 
-    /* Trampoline: called when fn() returns */
-    *--sp = (u64)(uintptr_t)task_exit;
-
-    /* Fake "return address" that switch_to will pop via ret */
-    /* We need a small trampoline that calls fn(arg) */
-    /* We'll encode it by pushing rbp=0, rbx=fn, r12=arg, then
-       a ret address pointing to a trampoline.
-       Simpler: use a dedicated inline trampoline stored per-task. */
-
-    /* Actual approach: we push a fake call frame.
-     * switch_to pops r15, r14, r13, r12, rbx, rbp then executes ret.
-     * We want ret to jump to a trampoline that calls fn(arg).
-     * So the ret address (top of frame) must be that trampoline.
-     * We pass fn in r12 and arg in r13.
+    /*
+     * Build the initial stack frame so that switch_to() / switch_to_first()
+     * "returns" into task_trampoline, which then calls fn(arg).
+     *
+     * switch_to saves/restores in this order:
+     *   push rbp, rbx, r12, r13, r14, r15  (save)
+     *   pop  r15, r14, r13, r12, rbx, rbp  (restore)
+     *   ret
+     *
+     * So at t->rsp the memory layout must be (low → high):
+     *   [rsp+ 0] r15 = 0
+     *   [rsp+ 8] r14 = 0
+     *   [rsp+16] r13 = arg   (task_trampoline reads r13 as the argument)
+     *   [rsp+24] r12 = fn    (task_trampoline calls *r12 as the function)
+     *   [rsp+32] rbx = 0
+     *   [rsp+40] rbp = 0
+     *   [rsp+48] task_trampoline  ← popped by ret
+     *   [rsp+56] task_exit        ← guard if stack ever unwinds further
+     *
+     * We push from high address to low (each *--sp decrements sp first).
      */
-
-    /* ret address → task_trampoline */
-    extern void task_trampoline(void);
-    *--sp = (u64)(uintptr_t)task_trampoline;
-    /* r15 */ *--sp = 0;
-    /* r14 */ *--sp = 0;
-    /* r13 */ *--sp = (u64)(uintptr_t)arg;    /* task argument */
-    /* r12 */ *--sp = (u64)(uintptr_t)fn;     /* task function */
-    /* rbx */ *--sp = 0;
+    *--sp = (u64)(uintptr_t)task_exit;       /* guard                */
+    *--sp = (u64)(uintptr_t)task_trampoline; /* return address → ret */
     /* rbp */ *--sp = 0;
+    /* rbx */ *--sp = 0;
+    /* r12 */ *--sp = (u64)(uintptr_t)fn;    /* task function        */
+    /* r13 */ *--sp = (u64)(uintptr_t)arg;   /* task argument        */
+    /* r14 */ *--sp = 0;
+    /* r15 */ *--sp = 0;
 
     t->rsp = (u64)(uintptr_t)sp;
 

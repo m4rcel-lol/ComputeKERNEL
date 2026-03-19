@@ -4,7 +4,6 @@
 #include <ck/vfs.h>
 #include <ck/multiboot2.h>
 #include <ck/types.h>
-#include <ck/io.h>
 
 /* Defined in kernel/shell/shell.c */
 void task_shell(void *arg);
@@ -108,13 +107,8 @@ void kmain(unsigned int mb2_magic, unsigned int mb2_info_phys)
     ck_puts("[sched] initialising scheduler ...\n");
     sched_init();
 
-    /* Create kernel tasks */
-    u64 irq_flags = irq_save();
-    task_create("shell", task_shell, NULL, 0);
-    irq_restore(irq_flags);
+    ck_puts("\n[boot] all subsystems online - starting shell\n\n");
 
-    ck_puts("\n[boot] all subsystems online - handing off to scheduler\n\n");
-
-    /* 8. Yield to the scheduler (never returns) */
-    sched_start();
+    /* 8. Run the interactive shell directly (never returns) */
+    task_shell(NULL);
 }

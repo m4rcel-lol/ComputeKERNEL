@@ -7,6 +7,8 @@
 #include <ck/io.h>
 #include <ck/types.h>
 #include <ck/kernel.h>
+#include <ck/string.h>
+#include <ck/keyboard.h>
 
 #define PS2_DATA 0x60
 #define PS2_STAT 0x64
@@ -35,8 +37,14 @@ static u32    kb_head = 0;
 static u32    kb_tail = 0;
 static int    kb_shift_l = 0; /* non-zero while Left Shift is held */
 static int    kb_shift_r = 0; /* non-zero while Right Shift is held */
+static int    kb_ctrl_l  = 0; /* non-zero while Left Ctrl is held */
+static int    kb_ctrl_r  = 0; /* non-zero while Right Ctrl is held */
 static int    kb_caps    = 0; /* Caps Lock toggle */
 static int    kb_e0      = 0; /* non-zero after receiving 0xE0 prefix */
+static int    kb_layout_idx = 0;
+static int    kb_sublayout_idx = 0;
+
+#define SC_LCTRL  0x1D
 
 /* Scan-code set 1 → ASCII (unshifted) */
 static const char sc_to_ascii[128] = {
@@ -61,6 +69,29 @@ static const char sc_to_ascii_shifted[128] = {
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,    0,    0,
     0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,    0,    0,
 };
+
+struct kb_layout {
+    const char *code;
+    const char *description;
+    const char * const *sublayouts;
+    int sublayout_count;
+};
+
+static const char * const kb_us_sublayouts[] = {
+    "qwerty",
+};
+
+static const char * const kb_pl_sublayouts[] = {
+    "programmer",
+    "214",
+};
+
+static const struct kb_layout kb_layouts[] = {
+    { "us", "English (US)", kb_us_sublayouts, 1 },
+    { "pl", "Polish",       kb_pl_sublayouts, 2 },
+};
+
+#define KB_LAYOUT_COUNT ((int)(sizeof(kb_layouts) / sizeof(kb_layouts[0])))
 
 static void kb_buf_push(char c)
 {
@@ -97,6 +128,10 @@ void keyboard_irq_handler(void)
 
     if (kb_e0) {
         kb_e0 = 0;
+        if (code == SC_LCTRL) {
+            kb_ctrl_r = release ? 0 : 1;
+            return;
+        }
         /* Handle extended arrow keys on press only */
         if (!release) {
             switch (code) {
@@ -113,6 +148,7 @@ void keyboard_irq_handler(void)
     /* Track Shift keys separately so releasing one doesn't clear both */
     if (code == SC_LSHIFT) { kb_shift_l = release ? 0 : 1; return; }
     if (code == SC_RSHIFT) { kb_shift_r = release ? 0 : 1; return; }
+    if (code == SC_LCTRL)  { kb_ctrl_l  = release ? 0 : 1; return; }
 
     /* Toggle Caps Lock on press */
     if (code == SC_CAPS && !release) {
@@ -134,6 +170,13 @@ void keyboard_irq_handler(void)
             if (kb_caps && c >= 'a' && c <= 'z')
                 c = (char)(c - 'a' + 'A');
         }
+        if (!c)
+            return;
+        if (kb_ctrl_l || kb_ctrl_r) {
+            if (c == 'c' || c == 'C') c = 0x03;
+            else if (c == 'x' || c == 'X') c = 0x18;
+            else if (c == 'v' || c == 'V') c = 0x16;
+        }
         if (c)
             kb_buf_push(c);
     }
@@ -142,4 +185,86 @@ void keyboard_irq_handler(void)
 void keyboard_init(void)
 {
     /* Nothing to program for basic PS/2 in emulators */
+}
+
+int keyboard_get_layout_count(void)
+{
+    return KB_LAYOUT_COUNT;
+}
+
+const char *keyboard_get_layout_code(int index)
+{
+    if (index < 0 || index >= KB_LAYOUT_COUNT)
+        return NULL;
+    return kb_layouts[index].code;
+}
+
+const char *keyboard_get_layout_description(int index)
+{
+    if (index < 0 || index >= KB_LAYOUT_COUNT)
+        return NULL;
+    return kb_layouts[index].description;
+}
+
+int keyboard_get_sublayout_count(const char *layout)
+{
+    if (!layout)
+        return 0;
+    for (int i = 0; i < KB_LAYOUT_COUNT; i++) {
+        if (strcmp(kb_layouts[i].code, layout) == 0)
+            return kb_layouts[i].sublayout_count;
+    }
+    return 0;
+}
+
+const char *keyboard_get_sublayout_name(const char *layout, int index)
+{
+    if (!layout)
+        return NULL;
+    for (int i = 0; i < KB_LAYOUT_COUNT; i++) {
+        if (strcmp(kb_layouts[i].code, layout) == 0) {
+            if (index < 0 || index >= kb_layouts[i].sublayout_count)
+                return NULL;
+            return kb_layouts[i].sublayouts[index];
+        }
+    }
+    return NULL;
+}
+
+const char *keyboard_current_layout(void)
+{
+    return kb_layouts[kb_layout_idx].code;
+}
+
+const char *keyboard_current_sublayout(void)
+{
+    return kb_layouts[kb_layout_idx].sublayouts[kb_sublayout_idx];
+}
+
+int keyboard_set_layout(const char *layout, const char *sublayout)
+{
+    if (!layout)
+        return -1;
+
+    for (int i = 0; i < KB_LAYOUT_COUNT; i++) {
+        if (strcmp(kb_layouts[i].code, layout) == 0) {
+            int selected_sub = 0;
+            if (sublayout && *sublayout) {
+                int found = 0;
+                for (int j = 0; j < kb_layouts[i].sublayout_count; j++) {
+                    if (strcmp(kb_layouts[i].sublayouts[j], sublayout) == 0) {
+                        selected_sub = j;
+                        found = 1;
+                        break;
+                    }
+                }
+                if (!found)
+                    return -2;
+            }
+            kb_layout_idx = i;
+            kb_sublayout_idx = selected_sub;
+            return 0;
+        }
+    }
+    return -1;
 }

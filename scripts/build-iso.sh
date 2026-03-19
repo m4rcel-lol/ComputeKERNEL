@@ -14,6 +14,13 @@ mkdir -p "${ISO_ROOT}/boot/grub"
 cp out/computekernel.elf "${ISO_ROOT}/boot/computekernel.elf"
 cp boot/grub/grub.cfg    "${ISO_ROOT}/boot/grub/grub.cfg"
 
+mkdir -p "${ISO_ROOT}/etc"
+cat > "${ISO_ROOT}/etc/live.conf" <<'EOF'
+USER=root
+ROOT_PASSWORD_DEFAULTS=toor,password
+DEFAULT_KEYBOARD_LAYOUT=us
+EOF
+
 # Create a bootable El Torito ISO using GRUB
 mkdir -p out
 grub-mkrescue -o "${ISO_PATH}" "${ISO_ROOT}"

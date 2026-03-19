@@ -19,6 +19,7 @@
 static struct task tasks[MAX_TASKS];
 static int         num_tasks  = 0;
 static int         current_tid = 0;    /* index into tasks[] */
+static int         sched_started = 0;
 
 /* Task exit function (non-static so switch.S can reference it) */
 void task_exit(void)
@@ -42,12 +43,17 @@ static void idle_task(void *arg)
 
 void sched_init(void)
 {
+    u64 flags = irq_save();
+
     memset(tasks, 0, sizeof(tasks));
     num_tasks   = 0;
     current_tid = 0;
+    sched_started = 0;
 
     /* Create the idle task (tid = 0) */
     task_create("idle", idle_task, NULL, DEFAULT_STACK_SIZE);
+
+    irq_restore(flags);
 }
 
 int task_create(const char *name, task_func_t fn, void *arg, size_t stack_size)
@@ -122,6 +128,9 @@ int task_create(const char *name, task_func_t fn, void *arg, size_t stack_size)
 /* ── Round-robin selection ──────────────────────────────────────────── */
 static int pick_next(void)
 {
+    if (num_tasks <= 0)
+        return 0;
+
     int start = (current_tid + 1) % num_tasks;
     int i     = start;
     do {
@@ -136,7 +145,7 @@ static int pick_next(void)
 
 void sched_yield(void)
 {
-    if (num_tasks <= 1) return;
+    if (num_tasks <= 1 || !sched_started) return;
 
     int prev_tid = current_tid;
     int next_tid = pick_next();
@@ -152,10 +161,27 @@ void sched_yield(void)
     switch_to(&tasks[prev_tid], &tasks[next_tid]);
 }
 
+void sched_start(void)
+{
+    if (num_tasks <= 0)
+        for (;;) __asm__ __volatile__("cli; hlt");
+
+    int next_tid = pick_next();
+    if (next_tid < 0 || next_tid >= num_tasks)
+        next_tid = 0;
+
+    tasks[next_tid].state = TASK_RUNNING;
+    current_tid = next_tid;
+    sched_started = 1;
+
+    switch_to_first(&tasks[next_tid]);
+    __builtin_unreachable();
+}
+
 /* Called from the PIT IRQ0 handler */
 void sched_tick(void)
 {
-    if (num_tasks <= 1) return;
+    if (num_tasks <= 1 || !sched_started) return;
     tasks[current_tid].ticks++;
     sched_yield();
 }

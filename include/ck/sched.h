@@ -36,10 +36,14 @@ void sched_tick(void);
 /* Voluntarily yield to the scheduler */
 void sched_yield(void);
 
+/* Start scheduler execution from boot context (never returns) */
+void sched_start(void) __attribute__((noreturn));
+
 /* Returns a pointer to the currently running task */
 struct task *sched_current(void);
 
 /* Architecture-specific context switch (boot/x86_64/switch.S) */
 void switch_to(struct task *prev, struct task *next);
+void switch_to_first(struct task *next);
 
 #endif /* CK_SCHED_H */

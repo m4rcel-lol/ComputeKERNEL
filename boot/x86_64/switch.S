@@ -48,6 +48,22 @@ switch_to:
 
     ret
 
+.global switch_to_first
+switch_to_first:
+    /* First switch: no previous task context to save */
+    /* rdi = next task pointer, next->rsp is at offset 0 */
+    movq  (%rdi), %rsp
+
+    /* Restore callee-saved registers of first task */
+    popq %r15
+    popq %r14
+    popq %r13
+    popq %r12
+    popq %rbx
+    popq %rbp
+
+    ret
+
 /*
  * task_trampoline – entered the first time a task runs.
  * r12 holds the task function, r13 holds the argument.
@@ -62,4 +78,3 @@ task_trampoline:
 
 /* Suppress executable-stack warning */
 .section .note.GNU-stack, "", @progbits
-

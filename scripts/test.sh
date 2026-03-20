@@ -135,6 +135,11 @@ if ! grep -Eq '\bneofetch\b' kernel/shell/shell.c; then
     exit 1
 fi
 
+if ! grep -Fq '@@@@@@@@@@          @@@@@@@@@@@@' kernel/shell/shell.c; then
+    echo "[test] expected updated fastfetch ASCII art in shell output"
+    exit 1
+fi
+
 if ! grep -Eq 'Terminal: VGA %ux%u' kernel/shell/shell.c; then
     echo "[test] expected terminal resolution output to use dynamic VGA dimensions"
     exit 1

@@ -35,6 +35,7 @@ void ck_console_scroll_reset(void);
 void ck_set_color(u8 fg_color);
 void ck_reset_color(void);
 u32 ck_boot_network_packet_size(void);
+const u8 *ck_boot_network_packet_data(void);
 int ck_network_available(void);
 
 /* Serial port (COM1) */

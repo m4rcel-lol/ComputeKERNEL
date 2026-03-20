@@ -78,10 +78,16 @@ static void print_meminfo(struct mb2_info *info)
 }
 
 static u32 boot_network_packet_size = 0;
+static const u8 *boot_network_packet_data = NULL;
 
 u32 ck_boot_network_packet_size(void)
 {
     return boot_network_packet_size;
+}
+
+const u8 *ck_boot_network_packet_data(void)
+{
+    return boot_network_packet_data;
 }
 
 int ck_network_available(void)
@@ -107,10 +113,13 @@ void kmain(unsigned int mb2_magic, unsigned int mb2_info_phys)
 
     struct mb2_info *mb2 = (struct mb2_info *)(uintptr_t)mb2_info_phys;
     struct mb2_tag *net_tag = mb2_find_tag(mb2, MB2_TAG_NETWORK);
-    if (net_tag && net_tag->size > sizeof(struct mb2_tag))
+    if (net_tag && net_tag->size > sizeof(struct mb2_tag)) {
         boot_network_packet_size = net_tag->size - (u32)sizeof(struct mb2_tag);
-    else
+        boot_network_packet_data = ((const u8 *)net_tag) + sizeof(struct mb2_tag);
+    } else {
         boot_network_packet_size = 0;
+        boot_network_packet_data = NULL;
+    }
 
     /* 3. Architecture init (GDT, IDT, PIC, PIT – enables interrupts) */
     arch_init();

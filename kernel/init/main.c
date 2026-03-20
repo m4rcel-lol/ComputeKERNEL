@@ -137,7 +137,7 @@ void kmain(unsigned int mb2_magic, unsigned int mb2_info_phys)
     ck_printk("[mm] heap ready (%llu pages free)\n", pmm_free_pages());
 
     /* 6. Network stack foundation */
-    ck_puts("[net] initialising TCP/IP stack foundation ...\n");
+    ck_puts("[net] initialising lwIP-oriented TCP/IP stack foundation ...\n");
     net_init();
 
     /* 7. NIC framework */

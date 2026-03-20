@@ -80,6 +80,16 @@ if ! grep -Eq 'foundation ready' kernel/shell/shell.c; then
     exit 1
 fi
 
+if ! grep -Eq 'lwIP planned in-kernel support' kernel/shell/shell.c; then
+    echo "[test] expected shell netinfo output to explicitly reference lwIP support direction"
+    exit 1
+fi
+
+if ! grep -Eq 'lwIP-oriented TCP/IP stack foundation' kernel/init/main.c; then
+    echo "[test] expected kernel boot log to reference lwIP-oriented TCP/IP stack foundation"
+    exit 1
+fi
+
 if ! grep -Eq 'ethertype=0x%04x' kernel/shell/shell.c; then
     echo "[test] expected ssh command to include networking ethertype details"
     exit 1

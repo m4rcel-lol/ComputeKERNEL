@@ -1320,6 +1320,7 @@ static void cmd_netinfo(void)
     const u8 *packet = ck_boot_network_packet_data();
     u32 packet_size = ck_boot_network_packet_size();
     ck_puts("netinfo: guest networking support\n");
+    ck_puts("  tcp/ip  : lwIP planned in-kernel support\n");
     ck_puts("  outbound: available with QEMU user networking (NAT)\n");
     ck_puts("  inbound : hostfwd tcp localhost:2222 -> guest:22\n");
     if (!ck_network_available()) {
@@ -1351,7 +1352,7 @@ static void cmd_ssh(void)
         ck_puts("  in-kernel : ssh daemon scaffold not available in current kernel build\n");
     }
     if (net_stack_ready()) {
-        ck_printk("  stack     : foundation ready (ethertype=0x%04x, ipv4=%s, tcp=%s)\n",
+        ck_printk("  stack     : lwIP-oriented foundation ready (ethertype=0x%04x, ipv4=%s, tcp=%s)\n",
                   (unsigned int)net_boot_ethertype(),
                   net_has_boot_ipv4() ? "yes" : "no",
                   net_has_boot_tcp() ? "yes" : "no");

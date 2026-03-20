@@ -73,6 +73,8 @@ static void cmd_installer_style(void);
 
 static int parse_u32_arg(const char *s, u32 *out)
 {
+    if (out)
+        *out = 0;
     if (!s || !*s || !out)
         return -1;
     u32 value = 0;

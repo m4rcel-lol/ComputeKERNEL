@@ -976,6 +976,28 @@ python3 tools/mkfs_image.py --rootfs rootfs/ --out out/initrd.img --size-mb 512
 - files: broad touch across arch/drivers/docs
 - done: two physical machines pass boot matrix
 
+### Advanced subsystem checklist (not yet implemented)
+- [ ] TCP/IP network stack                         - In-kernel TCP/IP (lwIP or custom)
+- [ ] Network device driver model                  - NIC driver framework
+- [ ] SSH daemon                                   - In-kernel SSH service
+- [ ] SMP (multi-core) support                     - Per-CPU scheduler, IPI, spinlocks
+- [ ] ACPI power management                        - Full ACPI AML interpreter
+- [ ] USB stack                                    - xHCI host controller + USB drivers
+- [ ] NVMe driver                                  - PCIe NVMe block device driver
+- [ ] ext4 filesystem                              - Full ext4 with journaling
+- [ ] procfs / sysfs                               - Runtime kernel info filesystems
+- [ ] Memory-mapped files                          - mmap(MAP_FILE) with page cache
+- [ ] Copy-on-write fork                           - Real COW fork() implementation
+- [ ] POSIX threads (pthreads)                     - Full pthread support
+- [ ] ASLR                                         - Address space layout randomization
+- [ ] KVM hypervisor support                       - Paravirtualization
+- [ ] DRM/KMS graphics                             - Framebuffer + GPU driver model
+- [ ] Audio subsystem                              - ALSA-style audio model
+- [ ] Bluetooth stack                              - HCI/L2CAP model
+- [ ] SELinux/AppArmor model                       - Mandatory access control
+- [ ] eBPF subsystem                               - In-kernel safe programs
+- [ ] io_uring                                     - Async I/O interface
+
 ---
 
 ## Section 18 — Starter code

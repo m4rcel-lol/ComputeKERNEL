@@ -65,6 +65,11 @@ if ! grep -Eq '\bnetinfo\b' kernel/shell/shell.c; then
     exit 1
 fi
 
+if ! grep -Eq 'TCP/IP stack not available in current kernel build' kernel/shell/shell.c; then
+    echo "[test] expected ssh command to report in-kernel TCP/IP stack status"
+    exit 1
+fi
+
 if ! grep -Eq 'setup-guide' kernel/shell/shell.c; then
     echo "[test] expected setup-guide command support in shell"
     exit 1

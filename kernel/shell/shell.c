@@ -1212,8 +1212,10 @@ static void cmd_netinfo(void)
 
 static void cmd_ssh(void)
 {
-    ck_puts("ssh: host-side TCP forward configured for QEMU on localhost:2222 -> guest:22\n");
-    ck_puts("ssh: in-kernel SSH server is not available yet\n");
+    ck_puts("ssh: secure shell access overview\n");
+    ck_puts("  host-side : TCP localhost:2222 -> guest:22 (QEMU user networking)\n");
+    ck_puts("  in-kernel : TCP/IP stack not available in current kernel build\n");
+    ck_puts("  status    : use host command ssh -p 2222 root@localhost\n");
 }
 
 static void cmd_scroll(const char *args)

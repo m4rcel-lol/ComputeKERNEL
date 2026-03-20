@@ -115,6 +115,16 @@ if ! grep -Eq 'kernel/arch/x86_64/mouse.c' Makefile; then
     exit 1
 fi
 
+if ! grep -Eq 'task_create\("cksh"' kernel/init/main.c; then
+    echo "[test] expected kernel boot path to create shell as scheduler task"
+    exit 1
+fi
+
+if ! grep -Eq 'sched_start\(\)' kernel/init/main.c; then
+    echo "[test] expected kernel boot path to start scheduler"
+    exit 1
+fi
+
 echo "[test] scaffold checks passed"
 
 if [ -f rust/Cargo.toml ]; then

@@ -144,8 +144,13 @@ void kmain(unsigned int mb2_magic, unsigned int mb2_info_phys)
     ck_puts("[sched] initialising scheduler ...\n");
     sched_init();
 
-    ck_puts("\n[boot] all subsystems online - starting shell\n\n");
+    ck_puts("\n[boot] all subsystems online - creating shell task\n\n");
 
-    /* 8. Run the interactive shell directly (never returns) */
-    task_shell(NULL);
+    /* 8. Create shell task and start scheduler */
+    if (task_create("cksh", task_shell, NULL, 0) < 0) {
+        ck_puts("[sched] failed to create shell task\n");
+        arch_halt();
+    }
+
+    sched_start();
 }

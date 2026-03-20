@@ -76,3 +76,8 @@ if ! grep -Eq 'kernel/arch/x86_64/mouse.c' Makefile; then
 fi
 
 echo "[test] scaffold checks passed"
+
+if [ -f rust/Cargo.toml ]; then
+    echo "[test] running rust check"
+    make rust-check
+fi

@@ -7,3 +7,5 @@ __pycache__/
 *.elf
 *.iso
 *.img
+rust/target/
+rust/Cargo.lock

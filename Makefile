@@ -113,13 +113,11 @@ rust-check:
 	@if [ -f rust/Cargo.toml ]; then \
 		if command -v cargo >/dev/null 2>&1; then \
 			cd rust && \
-			if rustc --print target-list | grep -qx 'x86_64-unknown-none'; then \
-				cargo check --target x86_64-unknown-none || { \
-					echo "x86_64-unknown-none toolchain incomplete; running host cargo check"; \
-					cargo check; \
-				}; \
+			if command -v rustup >/dev/null 2>&1 && \
+			   rustup target list --installed | grep -q '^x86_64-unknown-none$$'; then \
+				cargo check --target x86_64-unknown-none; \
 			else \
-				echo "x86_64-unknown-none target unavailable; running host cargo check"; \
+				echo "x86_64-unknown-none target not installed; running host cargo check"; \
 				cargo check; \
 			fi; \
 		else \

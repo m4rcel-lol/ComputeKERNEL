@@ -277,9 +277,7 @@ static void cmd_help(void)
     ck_puts("  layout                alias for kblayout\n");
     ck_puts("  kblayout list         list available keyboard layouts\n");
     ck_puts("  kblayout set <l> [s]  set layout code and optional sublayout\n");
-    ck_set_color(CK_COLOR_LIGHT_GRAY);
     ck_puts("  PgUp/PgDn             scroll shell output history\n");
-    ck_reset_color();
     ck_set_color(CK_COLOR_LIGHT_CYAN);
     ck_puts("+-------------------------------------------------------------+\n");
     ck_reset_color();

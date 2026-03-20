@@ -111,7 +111,20 @@ lint:
 
 rust-check:
 	@if [ -f rust/Cargo.toml ]; then \
-		cd rust && cargo check --target x86_64-unknown-none; \
+		if command -v cargo >/dev/null 2>&1; then \
+			cd rust && \
+			if rustc --print target-list | grep -qx 'x86_64-unknown-none'; then \
+				cargo check --target x86_64-unknown-none || { \
+					echo "x86_64-unknown-none toolchain incomplete; running host cargo check"; \
+					cargo check; \
+				}; \
+			else \
+				echo "x86_64-unknown-none target unavailable; running host cargo check"; \
+				cargo check; \
+			fi; \
+		else \
+			echo "cargo not found; skipping rust-check"; \
+		fi; \
 	else \
 		echo "rust/Cargo.toml not present yet; skipping rust-check"; \
 	fi

@@ -75,7 +75,7 @@ if ! grep -Eq 'rm \[-r\] <path>' kernel/shell/shell.c; then
     exit 1
 fi
 
-if ! grep -Eq 'VGA 80x50' kernel/shell/shell.c; then
+if ! grep -Eq 'VGA 80x25' kernel/shell/shell.c; then
     echo "[test] expected updated default terminal resolution in shell info"
     exit 1
 fi

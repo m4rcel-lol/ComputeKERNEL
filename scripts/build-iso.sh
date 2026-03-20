@@ -1,13 +1,11 @@
 #!/usr/bin/env sh
+# build-iso.sh — builds one universal ComputeKERNEL ISO that boots on any
+# hardware (BIOS / UEFI, USB / DVD / optical) and inside any VM
+# (QEMU, KVM, VirtualBox, VMware, Hyper-V, …).
 set -eu
 
-VM_TARGET="${VM_TARGET:-main}"
 ISO_ROOT="build/iso_root"
 ISO_PATH="out/computekernel.iso"
-
-if [ "$VM_TARGET" != "main" ]; then
-    ISO_PATH="out/computekernel-${VM_TARGET}.iso"
-fi
 
 # Assemble the ISO directory tree
 if [ -z "${ISO_ROOT}" ] || [ "${ISO_ROOT}" = "/" ]; then
@@ -27,24 +25,23 @@ ROOT_PASSWORD_DEFAULTS=toor,password
 DEFAULT_KEYBOARD_LAYOUT=us
 EOF
 
-# Create a bootable El Torito ISO using GRUB
 mkdir -p out
-if [ "${VM_TARGET}" = "main" ]; then
-    # Real-hardware-focused image: force GRUB console mode.
-    GRUB_TERMINAL=console GRUB_TERMINAL_OUTPUT=console \
-        grub-mkrescue -o "${ISO_PATH}" "${ISO_ROOT}"
-    # If available, post-process for broader BIOS/UEFI USB compatibility.
-    if command -v isohybrid >/dev/null 2>&1; then
-        if isohybrid --uefi "${ISO_PATH}"; then
-            echo "[CK] isohybrid --uefi applied"
-        elif isohybrid "${ISO_PATH}"; then
-            echo "[CK] isohybrid (BIOS) fallback applied"
-        else
-            echo "[CK] warning: isohybrid post-processing failed"
-        fi
-    fi
-else
+
+# Universal image: force GRUB plain-text console so it works on bare metal
+# (no VESA/GOP firmware required) AND inside every common hypervisor.
+GRUB_TERMINAL=console GRUB_TERMINAL_OUTPUT=console \
     grub-mkrescue -o "${ISO_PATH}" "${ISO_ROOT}"
+
+# Post-process into a hybrid image so the same .iso file can be written
+# directly to a USB drive (BIOS or UEFI) without a separate tool.
+if command -v isohybrid >/dev/null 2>&1; then
+    if isohybrid --uefi "${ISO_PATH}" 2>/dev/null; then
+        echo "[CK] isohybrid --uefi applied (USB-bootable on UEFI + BIOS)"
+    elif isohybrid "${ISO_PATH}" 2>/dev/null; then
+        echo "[CK] isohybrid (BIOS) fallback applied (USB-bootable on BIOS)"
+    else
+        echo "[CK] warning: isohybrid post-processing failed (ISO still usable)"
+    fi
 fi
 
-echo "[CK] ISO → ${ISO_PATH}"
+echo "[CK] Universal ISO → ${ISO_PATH}"

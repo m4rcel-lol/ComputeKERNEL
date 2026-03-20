@@ -337,9 +337,13 @@ static void cmd_fastfetch(void)
     ck_puts("                  @@@@@@@@@@          @@@@@@@@@@@@\n");
     ck_reset_color();
     ck_puts("\n");
+    ck_set_color(CK_COLOR_LIGHT_RED);
     ck_puts(SHELL_USER);
+    ck_set_color(CK_COLOR_YELLOW);
     ck_puts("@");
+    ck_set_color(CK_COLOR_LIGHT_GREEN);
     ck_puts(SHELL_HOSTNAME);
+    ck_reset_color();
     ck_puts("\n");
     ck_puts("-----------------------------\n");
     ck_puts("OS:       ComputeKERNEL 1.0.0\n");

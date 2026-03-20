@@ -313,7 +313,7 @@ static void cmd_fastfetch(void)
 
     /* Lines 8+ : no art, just info */
     ck_puts("                   Hostname: " SHELL_HOSTNAME "\n");
-    ck_puts("                   Terminal: VGA 80x50\n");
+    ck_puts("                   Terminal: VGA 80x25\n");
     ck_printk("                   Uptime:   %llu:%02llu:%02llu\n",
               uptime_h, uptime_m % 60, uptime_s % 60);
     ck_printk("                   Memory:   %llu / %llu KiB used\n",
@@ -1316,8 +1316,8 @@ void task_shell(void *arg)
 {
     (void)arg;
 
-    /* Wait briefly so the boot log finishes printing */
-    pit_sleep_ms(200);
+    /* Yield once so boot log flushes without blocking on PIT tick timing. */
+    sched_yield();
 
     ck_set_color(CK_COLOR_LIGHT_GREEN);
     ck_puts("\nWelcome to ComputeKERNEL!");

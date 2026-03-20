@@ -136,17 +136,21 @@ void kmain(unsigned int mb2_magic, unsigned int mb2_info_phys)
     heap_init();
     ck_printk("[mm] heap ready (%llu pages free)\n", pmm_free_pages());
 
-    /* 6. Virtual filesystem */
+    /* 6. Network stack foundation */
+    ck_puts("[net] initialising TCP/IP stack foundation ...\n");
+    net_init();
+
+    /* 7. Virtual filesystem */
     ck_puts("[vfs] initialising virtual filesystem ...\n");
     vfs_init();
 
-    /* 7. Scheduler */
+    /* 8. Scheduler */
     ck_puts("[sched] initialising scheduler ...\n");
     sched_init();
 
     ck_puts("\n[boot] all subsystems online - creating shell task\n\n");
 
-    /* 8. Create shell task and start scheduler */
+    /* 9. Create shell task and start scheduler */
     if (task_create("cksh", task_shell, NULL, 0) < 0) {
         ck_puts("[sched] failed to create shell task\n");
         arch_halt();

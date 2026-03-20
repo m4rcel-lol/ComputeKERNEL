@@ -65,6 +65,21 @@ if ! grep -Eq '\bnetinfo\b' kernel/shell/shell.c; then
     exit 1
 fi
 
+if ! grep -Eq 'kernel/net/stack.c' Makefile; then
+    echo "[test] expected kernel networking stack foundation to be compiled"
+    exit 1
+fi
+
+if ! grep -Eq 'net_init\(\)' kernel/init/main.c; then
+    echo "[test] expected kernel boot path to initialize networking stack foundation"
+    exit 1
+fi
+
+if ! grep -Eq 'foundation ready \(ethertype=' kernel/shell/shell.c; then
+    echo "[test] expected ssh command to report networking foundation status details"
+    exit 1
+fi
+
 if ! grep -Eq 'TCP/IP stack not available in current kernel build' kernel/shell/shell.c; then
     echo "[test] expected ssh command to report in-kernel TCP/IP stack status"
     exit 1

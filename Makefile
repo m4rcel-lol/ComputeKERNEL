@@ -31,6 +31,7 @@ SRCS_C  := \
     kernel/arch/x86_64/cpu.c \
     kernel/mm/pmm.c \
     kernel/mm/heap.c \
+    kernel/net/stack.c \
     kernel/sched/sched.c \
     kernel/vfs/vfs.c \
     kernel/vfs/ramfs.c \

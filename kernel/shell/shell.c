@@ -1344,6 +1344,12 @@ static void cmd_ssh(void)
     ck_puts("ssh: secure shell access overview\n");
     ck_puts("  host-side : TCP localhost:2222 -> guest:22 (QEMU user networking)\n");
     ck_puts("  in-kernel : TCP/IP stack not available in current kernel build\n");
+    if (net_stack_ready()) {
+        ck_printk("  stack     : foundation ready (ethertype=0x%04x, ipv4=%s, tcp=%s)\n",
+                  (unsigned int)net_boot_ethertype(),
+                  net_has_boot_ipv4() ? "yes" : "no",
+                  net_has_boot_tcp() ? "yes" : "no");
+    }
     ck_puts("  connect   : use host command ssh -p 2222 root@localhost\n");
 }
 

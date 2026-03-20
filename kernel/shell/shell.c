@@ -1242,7 +1242,7 @@ static void cmd_ssh(void)
     ck_puts("ssh: secure shell access overview\n");
     ck_puts("  host-side : TCP localhost:2222 -> guest:22 (QEMU user networking)\n");
     ck_puts("  in-kernel : TCP/IP stack not available in current kernel build\n");
-    ck_puts("  status    : use host command ssh -p 2222 root@localhost\n");
+    ck_puts("  connect   : use host command ssh -p 2222 root@localhost\n");
 }
 
 static void cmd_motd(void)
@@ -1300,10 +1300,11 @@ static void cmd_palette(void)
         { CK_COLOR_YELLOW, "yellow" },
         { CK_COLOR_WHITE, "white" },
     };
+    const u32 swatches_count = (u32)(sizeof(swatches) / sizeof(swatches[0]));
     ck_puts("palette: VGA text colors\n");
-    for (u32 i = 0; i < (u32)(sizeof(swatches) / sizeof(swatches[0])); i++) {
+    for (u32 i = 0; i < swatches_count; i++) {
         ck_set_color(swatches[i].color);
-        ck_printk("  [%2u] %s", (unsigned int)i, swatches[i].name);
+        ck_printk("  [%2u] %s", (unsigned int)swatches[i].color, swatches[i].name);
         ck_reset_color();
         ck_puts("\n");
     }

@@ -110,6 +110,16 @@ if ! grep -Eq '\bbanner\b' kernel/shell/shell.c; then
     exit 1
 fi
 
+if ! grep -Eq '\btasks\b' kernel/shell/shell.c; then
+    echo "[test] expected tasks command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\bsyscheck\b' kernel/shell/shell.c; then
+    echo "[test] expected syscheck command support in shell"
+    exit 1
+fi
+
 if ! grep -Eq '\bneofetch\b' kernel/shell/shell.c; then
     echo "[test] expected neofetch alias support in shell"
     exit 1

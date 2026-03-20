@@ -53,6 +53,7 @@ extern u64  pmm_free_pages(void);
 #define SHELL_HIST_MAX  16
 #define SHELL_HIST_LEN  SHELL_LINE_MAX
 #define SHELL_SCROLL_TO_TOP_LINES 1000U
+#define PATH_SEG_MAX 128
 
 static char shell_hist[SHELL_HIST_MAX][SHELL_HIST_LEN];
 static int  shell_hist_count = 0;
@@ -110,7 +111,7 @@ static int path_normalize_abs(const char *in, char *out)
     char tmp[VFS_NAME_MAX];
     memcpy(tmp, in, in_len + 1);
 
-    int seg_start[VFS_NAME_MAX / 2];
+    int seg_start[PATH_SEG_MAX];
     int seg_count = 0;
     size_t out_len = 1;
     out[0] = '/';
@@ -146,16 +147,14 @@ static int path_normalize_abs(const char *in, char *out)
 
         if (out_len + len >= VFS_NAME_MAX)
             return -1;
+        if (seg_count >= PATH_SEG_MAX)
+            return -1;
         seg_start[seg_count++] = (int)(out_len > 1 ? out_len - 1 : 1);
         memcpy(out + out_len, tmp + start, len);
         out_len += len;
         out[out_len] = '\0';
     }
 
-    if (out_len == 0) {
-        out[0] = '/';
-        out[1] = '\0';
-    }
     return 0;
 }
 
@@ -628,20 +627,24 @@ static void cmd_rm(const char *args)
         return;
     }
 
-    int recursive = 0;
+    int is_recursive = 0;
     int force = 0;
     const char *path = args;
     while (*path == ' ')
         path++;
     while (*path == '-') {
-        path++;
-        if (!*path || *path == ' ') {
-            ck_puts("rm: invalid option\n");
-            return;
+        if (path[1] == '-' && (path[2] == '\0' || path[2] == ' ')) {
+            path += 2;
+            while (*path == ' ')
+                path++;
+            break;
         }
+        if (path[1] == '\0' || path[1] == ' ')
+            break;
+        path++;
         while (*path && *path != ' ') {
             if (*path == 'r')
-                recursive = 1;
+                is_recursive = 1;
             else if (*path == 'f')
                 force = 1;
             else {
@@ -669,11 +672,11 @@ static void cmd_rm(const char *args)
             ck_printk("rm: %s: No such file or directory\n", resolved);
         return;
     }
-    if (node->type == VFS_DIR && !recursive) {
+    if (node->type == VFS_DIR && !is_recursive) {
         ck_printk("rm: %s: is a directory (use rm -r)\n", resolved);
         return;
     }
-    if ((recursive ? rm_recursive(resolved) : vfs_unlink(resolved)) < 0 && !force)
+    if ((is_recursive ? rm_recursive(resolved) : vfs_unlink(resolved)) < 0 && !force)
         ck_printk("rm: %s: cannot remove\n", resolved);
 }
 
@@ -1161,7 +1164,7 @@ static void cmd_mouse(void)
 
 static void cmd_netinfo(void)
 {
-    const u8 *packet = (const u8 *)ck_boot_network_packet_data();
+    const u8 *packet = ck_boot_network_packet_data();
     u32 packet_size = ck_boot_network_packet_size();
     ck_puts("netinfo: guest networking support\n");
     ck_puts("  outbound: available with QEMU user networking (NAT)\n");
@@ -1267,7 +1270,7 @@ static void shell_exec(char *line)
     else if (strcmp(line, "setup-alpine") == 0) cmd_installer_style();
     else if (strcmp(line, "arch-install") == 0) {
         ck_puts("arch-install: deprecated alias, running 'setup'\n");
-        cmd_installer_style();
+        cmd_setup();
     }
     else if (strcmp(line, "sudo")      == 0) cmd_sudo(args);
     else if (strcmp(line, "netinfo")   == 0) cmd_netinfo();

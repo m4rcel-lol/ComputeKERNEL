@@ -10,6 +10,8 @@
 #define VGA_ROWS        50
 #define VGA_COLOR_WHITE 0x0f   /* white on black (default) */
 #define SCROLLBACK_LINES 200
+#define VGA_MAX_SCAN_MASK 0xe0U
+#define VGA_SCANLINE_8    0x07U
 
 static int col = 0, row = 0;
 static u8  vga_color = VGA_COLOR_WHITE;
@@ -30,7 +32,8 @@ static void vga_enable_80x50(void)
      */
     outb(0x3d4, 0x09);
     u8 max_scan = inb(0x3d5);
-    max_scan = (u8)((max_scan & 0xe0U) | 0x07U);
+    /* Preserve upper control bits, set max scanline to 7 (8-scanline font). */
+    max_scan = (max_scan & VGA_MAX_SCAN_MASK) | VGA_SCANLINE_8;
     outb(0x3d5, max_scan);
 }
 

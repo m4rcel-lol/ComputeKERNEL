@@ -95,33 +95,18 @@ if ! grep -Eq 'hostfwd=tcp::2222-:22' scripts/run-kvm.sh; then
     exit 1
 fi
 
-if ! grep -Eq 'make kernel' .github/workflows/build-main-iso.yml; then
-    echo "[test] expected main ISO workflow to run full kernel build"
+if ! grep -Eq 'make kernel' .github/workflows/build-universal-iso.yml; then
+    echo "[test] expected universal ISO workflow to run full kernel build"
     exit 1
 fi
 
-if ! grep -Eq 'make lint' .github/workflows/build-main-iso.yml; then
-    echo "[test] expected main ISO workflow to run lint checks"
+if ! grep -Eq 'make lint' .github/workflows/build-universal-iso.yml; then
+    echo "[test] expected universal ISO workflow to run lint checks"
     exit 1
 fi
 
-if ! grep -Eq 'make test' .github/workflows/build-main-iso.yml; then
-    echo "[test] expected main ISO workflow to run test checks"
-    exit 1
-fi
-
-if ! grep -Eq 'make kernel' .github/workflows/build-vm-iso.yml; then
-    echo "[test] expected VM ISO workflow to run full kernel build"
-    exit 1
-fi
-
-if ! grep -Eq 'make lint' .github/workflows/build-vm-iso.yml; then
-    echo "[test] expected VM ISO workflow to run lint checks"
-    exit 1
-fi
-
-if ! grep -Eq 'make test' .github/workflows/build-vm-iso.yml; then
-    echo "[test] expected VM ISO workflow to run test checks"
+if ! grep -Eq 'make test' .github/workflows/build-universal-iso.yml; then
+    echo "[test] expected universal ISO workflow to run test checks"
     exit 1
 fi
 

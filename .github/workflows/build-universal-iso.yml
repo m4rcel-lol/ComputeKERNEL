@@ -1,0 +1,235 @@
+name: Build Universal ISO
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Produces ONE universal ComputeKERNEL ISO that boots on:
+#   • Physical hardware  – BIOS (legacy) and UEFI, USB drive and optical disc
+#   • Virtual machines   – QEMU, KVM, VirtualBox, VMware, Hyper-V, and more
+#
+# Pipeline stages
+# ───────────────
+#  1. validate-environment   – sanity-check required tools and repo layout
+#  2. build-kernel           – compile kernel ELF, run lint + test suite
+#  3. build-universal-iso    – assemble the single universal ISO image
+#  4. verify-iso             – structural and content checks on the artifact
+#  5. upload-artifact        – publish computekernel-universal.iso
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancel any in-flight run for the same ref so resources are not wasted.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ─── shared tool installation ────────────────────────────────────────────────
+env:
+  APT_BUILD_DEPS: >-
+    gcc binutils grub-pc-bin grub-common xorriso mtools python3
+
+jobs:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Stage 1 – validate build environment
+  # ─────────────────────────────────────────────────────────────────────────
+  validate-environment:
+    name: "Stage 1 · Validate environment"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ${{ env.APT_BUILD_DEPS }}
+
+      - name: Verify required tools are present
+        run: |
+          echo "=== Required tool versions ==="
+          gcc        --version | head -1
+          ld         --version | head -1
+          grub-mkrescue --version 2>/dev/null || grub-mkrescue --help 2>&1 | head -1 || true
+          xorriso    --version 2>&1 | head -1
+          python3    --version
+          echo "=== Repo layout check ==="
+          test -f Makefile          && echo "  Makefile                  OK"
+          test -f scripts/build-iso.sh && echo "  scripts/build-iso.sh      OK"
+          test -f boot/grub/grub.cfg   && echo "  boot/grub/grub.cfg        OK"
+          test -d kernel               && echo "  kernel/                   OK"
+          test -d arch                 && echo "  arch/                     OK"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Stage 2 – build kernel + run full test and lint suite
+  # ─────────────────────────────────────────────────────────────────────────
+  build-kernel:
+    name: "Stage 2 · Build kernel + run tests"
+    needs: validate-environment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ${{ env.APT_BUILD_DEPS }}
+
+      - name: Compile kernel ELF
+        run: make kernel
+
+      - name: Run lint checks (shell + Python syntax)
+        run: make lint
+
+      - name: Run full test suite
+        run: make test
+
+      - name: Report kernel binary size
+        run: |
+          echo "=== Kernel ELF size ==="
+          ls -lh out/computekernel.elf
+          size out/computekernel.elf || true
+
+      - name: Upload kernel ELF (shared with ISO build stage)
+        uses: actions/upload-artifact@v4
+        with:
+          name: computekernel-elf
+          path: out/computekernel.elf
+          if-no-files-found: error
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Stage 3 – assemble the one universal ISO
+  # ─────────────────────────────────────────────────────────────────────────
+  build-universal-iso:
+    name: "Stage 3 · Build universal ISO"
+    needs: build-kernel
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ${{ env.APT_BUILD_DEPS }}
+
+      - name: Download pre-built kernel ELF
+        uses: actions/download-artifact@v4
+        with:
+          name: computekernel-elf
+          path: out/
+
+      - name: Build universal ISO
+        run: |
+          echo "=== Building universal ISO (hardware + VM compatible) ==="
+          ./scripts/build-iso.sh
+
+      - name: Show ISO metadata
+        run: |
+          echo "=== Universal ISO details ==="
+          ls -lh out/computekernel.iso
+          file out/computekernel.iso
+
+      - name: Upload universal ISO (passed to verify stage)
+        uses: actions/upload-artifact@v4
+        with:
+          name: computekernel-universal-iso-staging
+          path: out/computekernel.iso
+          if-no-files-found: error
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Stage 4 – verify ISO integrity and content
+  # ─────────────────────────────────────────────────────────────────────────
+  verify-iso:
+    name: "Stage 4 · Verify universal ISO"
+    needs: build-universal-iso
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install verification tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            xorriso isoinfo file binutils
+
+      - name: Download universal ISO
+        uses: actions/download-artifact@v4
+        with:
+          name: computekernel-universal-iso-staging
+          path: out/
+
+      - name: Check ISO is a valid El Torito / ISO 9660 image
+        run: |
+          echo "=== ISO 9660 signature ==="
+          file out/computekernel.iso | grep -i "ISO 9660"
+
+      - name: Inspect ISO directory tree
+        run: |
+          echo "=== ISO contents ==="
+          xorriso -indev out/computekernel.iso -ls / 2>/dev/null || \
+            isoinfo -i out/computekernel.iso -l 2>/dev/null || true
+
+      - name: Confirm kernel ELF is embedded in the ISO
+        run: |
+          echo "=== Checking kernel ELF is present inside ISO ==="
+          xorriso -indev out/computekernel.iso -ls /boot 2>/dev/null | \
+            grep -i "computekernel.elf" || \
+          isoinfo -i out/computekernel.iso -l 2>/dev/null | \
+            grep -i "computekernel"
+
+      - name: Confirm GRUB config is embedded in the ISO
+        run: |
+          echo "=== Checking GRUB config is present inside ISO ==="
+          xorriso -indev out/computekernel.iso -ls /boot/grub 2>/dev/null | \
+            grep -i "grub.cfg" || \
+          isoinfo -i out/computekernel.iso -l 2>/dev/null | \
+            grep -i "grub"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Stage 5 – publish the final artifact
+  # ─────────────────────────────────────────────────────────────────────────
+  upload-artifact:
+    name: "Stage 5 · Publish universal ISO"
+    needs: verify-iso
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download verified universal ISO
+        uses: actions/download-artifact@v4
+        with:
+          name: computekernel-universal-iso-staging
+          path: out/
+
+      - name: Upload final universal ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: computekernel-universal-iso
+          path: out/computekernel.iso
+          if-no-files-found: error
+
+      - name: Print summary
+        run: |
+          echo "### ComputeKERNEL Universal ISO" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "One ISO — boots on **any hardware or VM**:" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Physical machines (BIOS legacy + UEFI, USB + optical disc)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- QEMU / KVM" >> "$GITHUB_STEP_SUMMARY"
+          echo "- VirtualBox" >> "$GITHUB_STEP_SUMMARY"
+          echo "- VMware (Workstation / Fusion / ESXi)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Hyper-V" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Any other hypervisor that accepts ISO 9660 images" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Artifact:** \`computekernel-universal-iso\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "**File:** \`computekernel.iso\`" >> "$GITHUB_STEP_SUMMARY"
+          SIZE=$(du -sh out/computekernel.iso 2>/dev/null | cut -f1 || echo "unknown")
+          echo "**Size:** ${SIZE}" >> "$GITHUB_STEP_SUMMARY"

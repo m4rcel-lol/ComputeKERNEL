@@ -140,17 +140,21 @@ void kmain(unsigned int mb2_magic, unsigned int mb2_info_phys)
     ck_puts("[net] initialising TCP/IP stack foundation ...\n");
     net_init();
 
-    /* 7. Virtual filesystem */
+    /* 7. NIC framework */
+    ck_puts("[net] initialising network device driver framework ...\n");
+    nic_init();
+
+    /* 8. Virtual filesystem */
     ck_puts("[vfs] initialising virtual filesystem ...\n");
     vfs_init();
 
-    /* 8. Scheduler */
+    /* 9. Scheduler */
     ck_puts("[sched] initialising scheduler ...\n");
     sched_init();
 
     ck_puts("\n[boot] all subsystems online - creating shell task\n\n");
 
-    /* 9. Create shell task and start scheduler */
+    /* 10. Create shell task and start scheduler */
     if (task_create("cksh", task_shell, NULL, 0) < 0) {
         ck_puts("[sched] failed to create shell task\n");
         arch_halt();

@@ -76,12 +76,27 @@ if ! grep -Eq 'net_init\(\)' kernel/init/main.c; then
 fi
 
 if ! grep -Eq 'foundation ready' kernel/shell/shell.c; then
-    echo "[test] expected ssh command to report networking foundation readiness"
+    echo "[test] expected shell networking output to include foundation readiness text"
     exit 1
 fi
 
 if ! grep -Eq 'ethertype=0x%04x' kernel/shell/shell.c; then
     echo "[test] expected ssh command to include networking ethertype details"
+    exit 1
+fi
+
+if ! grep -Eq 'kernel/net/nic.c' Makefile; then
+    echo "[test] expected NIC framework to be compiled in kernel build"
+    exit 1
+fi
+
+if ! grep -Eq 'nic_init\(\)' kernel/init/main.c; then
+    echo "[test] expected kernel boot path to initialize NIC framework"
+    exit 1
+fi
+
+if ! grep -Eq 'nic_device_count' kernel/shell/shell.c; then
+    echo "[test] expected shell netinfo implementation to query NIC framework device count"
     exit 1
 fi
 

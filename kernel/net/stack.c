@@ -31,11 +31,11 @@ void net_init(void)
         return;
     }
 
-    u16 ethertype = NET_READ_BE16(packet, NET_ETH_OFFSET_ETHERTYPE_HI, NET_ETH_OFFSET_ETHERTYPE_LO);
-    g_boot_net.ethertype = ethertype;
+    u16 boot_ethertype = NET_READ_BE16(packet, NET_ETH_OFFSET_ETHERTYPE_HI, NET_ETH_OFFSET_ETHERTYPE_LO);
+    g_boot_net.ethertype = boot_ethertype;
 
-    if (ethertype != NET_ETHERTYPE_IPV4) {
-        ck_printk("[net] stack: unsupported boot ethertype 0x%04x\n", (unsigned int)ethertype);
+    if (boot_ethertype != NET_ETHERTYPE_IPV4) {
+        ck_printk("[net] stack: unsupported boot ethertype 0x%04x\n", (unsigned int)boot_ethertype);
         return;
     }
 

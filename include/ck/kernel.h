@@ -4,6 +4,7 @@
 #include <ck/types.h>
 #include <ck/string.h>
 #include <ck/net.h>
+#include <ck/nic.h>
 
 /* ── Early console (VGA text + serial) ─────────────────────────────── */
 void ck_early_console_init(void);

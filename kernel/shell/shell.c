@@ -1337,6 +1337,7 @@ static void cmd_netinfo(void)
         ck_printk("            ethertype 0x%04x\n", (unsigned int)ethertype);
     }
     ck_puts("  status  : boot-time packet visibility is active in-kernel\n");
+    ck_printk("  nics    : %u registered via NIC framework\n", (unsigned int)nic_device_count());
 }
 
 static void cmd_ssh(void)

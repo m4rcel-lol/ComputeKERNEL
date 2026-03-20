@@ -978,7 +978,7 @@ python3 tools/mkfs_image.py --rootfs rootfs/ --out out/initrd.img --size-mb 512
 
 ### Advanced subsystem checklist (not yet implemented)
 - [ ] TCP/IP network stack                         - In-kernel TCP/IP (lwIP or custom)
-- [ ] Network device driver model                  - NIC driver framework
+- [x] Network device driver model                  - NIC driver framework
 - [ ] SSH daemon                                   - In-kernel SSH service (research-only; high-risk attack surface)
 - [ ] SMP (multi-core) support                     - Per-CPU scheduler, IPI, spinlocks
 - [ ] ACPI power management                        - Full ACPI AML interpreter

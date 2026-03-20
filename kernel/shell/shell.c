@@ -337,7 +337,10 @@ static void cmd_fastfetch(void)
     ck_puts("                  @@@@@@@@@@          @@@@@@@@@@@@\n");
     ck_reset_color();
     ck_puts("\n");
-    ck_puts(SHELL_USER "@" SHELL_HOSTNAME "\n");
+    ck_puts(SHELL_USER);
+    ck_puts("@");
+    ck_puts(SHELL_HOSTNAME);
+    ck_puts("\n");
     ck_puts("-----------------------------\n");
     ck_puts("OS:       ComputeKERNEL 1.0.0\n");
     ck_puts("Arch:     x86_64\n");
@@ -345,7 +348,7 @@ static void cmd_fastfetch(void)
     ck_puts("CPU:      x86_64\n");
     ck_puts("Shell:    cksh 1.0.0\n");
 
-    /* Lines 8+ : no art, just info */
+    /* Additional system info */
     ck_puts("                   Hostname: " SHELL_HOSTNAME "\n");
     u32 display_w = 0, display_h = 0;
     ck_display_get_resolution(&display_w, &display_h);

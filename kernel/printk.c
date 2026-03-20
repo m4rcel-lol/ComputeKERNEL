@@ -8,11 +8,14 @@
 #define VGA_BASE        ((volatile unsigned short *)0xb8000)
 #define VGA_COLS        80
 #define VGA_ROWS        25
+#define DISPLAY_MAX_DIM 4096U
 #define VGA_COLOR_WHITE 0x0f   /* white on black (default) */
 #define SCROLLBACK_LINES 200
 
 static int col = 0, row = 0;
 static u8  vga_color = VGA_COLOR_WHITE;
+static u32 display_width = VGA_COLS;
+static u32 display_height = VGA_ROWS;
 static unsigned short scrollback[SCROLLBACK_LINES][VGA_COLS];
 static unsigned short live_screen[VGA_ROWS][VGA_COLS];
 static u32 scrollback_used = 0;
@@ -346,6 +349,27 @@ void ck_console_scroll_reset(void)
     scroll_view = 0;
     restore_live_screen();
     vga_update_cursor();
+}
+
+int ck_display_set_resolution(u32 width, u32 height)
+{
+    if (width == 0 || height == 0 || width > DISPLAY_MAX_DIM || height > DISPLAY_MAX_DIM)
+        return -1;
+    /*
+     * ComputeKERNEL currently uses VGA text mode at 0xB8000.
+     * This path cannot actually switch hardware resolution yet.
+     */
+    display_width = width;
+    display_height = height;
+    return 0;
+}
+
+void ck_display_get_resolution(u32 *width, u32 *height)
+{
+    if (width)
+        *width = display_width;
+    if (height)
+        *height = display_height;
 }
 
 /* ── Panic ──────────────────────────────────────────────────────────── */

@@ -71,6 +71,24 @@ static char shell_clipboard[SHELL_LINE_MAX];
 static void shell_exec(char *line);
 static void cmd_installer_style(void);
 
+static int parse_u32_arg(const char *s, u32 *out)
+{
+    if (!s || !*s || !out)
+        return -1;
+    u32 value = 0;
+    while (*s) {
+        if (*s < '0' || *s > '9')
+            return -1;
+        u32 digit = (u32)(*s - '0');
+        if (value > (0xFFFFFFFFU - digit) / 10U)
+            return -1;
+        value = value * 10U + digit;
+        s++;
+    }
+    *out = value;
+    return 0;
+}
+
 /* ── History helpers ─────────────────────────────────────────────────── */
 
 static void hist_add(const char *line)
@@ -233,6 +251,7 @@ static void cmd_help(void)
     ck_puts("  ssh                   show current SSH support status\n");
     ck_puts("  mouse                 show PS/2 mouse status and position\n");
     ck_puts("  scroll [up|down|top|bottom]  navigate shell scrollback buffer (default: up)\n");
+    ck_puts("  resolution [WxH|W H] set or show display resolution (default: 80x25)\n");
     ck_puts("  credits               show ComputeKERNEL credits\n");
     ck_puts("  kblayout              configure keyboard layout interactively\n");
     ck_puts("  layout                alias for kblayout\n");
@@ -313,7 +332,10 @@ static void cmd_fastfetch(void)
 
     /* Lines 8+ : no art, just info */
     ck_puts("                   Hostname: " SHELL_HOSTNAME "\n");
-    ck_puts("                   Terminal: VGA 80x25\n");
+    u32 display_w = 0, display_h = 0;
+    ck_display_get_resolution(&display_w, &display_h);
+    ck_printk("                   Terminal: VGA %ux%u\n",
+              (unsigned int)display_w, (unsigned int)display_h);
     ck_printk("                   Uptime:   %llu:%02llu:%02llu\n",
               uptime_h, uptime_m % 60, uptime_s % 60);
     ck_printk("                   Memory:   %llu / %llu KiB used\n",
@@ -1213,6 +1235,76 @@ static void cmd_scroll(const char *args)
     ck_puts("scroll: usage: scroll [up|down|top|bottom]\n");
 }
 
+static void cmd_resolution(const char *args)
+{
+    u32 width = 0, height = 0;
+    ck_display_get_resolution(&width, &height);
+
+    if (!args || !*args) {
+        ck_printk("resolution: current %ux%u (default 80x25)\n",
+                  (unsigned int)width, (unsigned int)height);
+        return;
+    }
+
+    char first[16];
+    char second[16];
+    size_t fi = 0;
+    size_t si = 0;
+
+    while (*args == ' ')
+        args++;
+    while (*args && *args != ' ' && *args != 'x' && *args != 'X') {
+        if (fi + 1 >= sizeof(first)) {
+            ck_puts("resolution: usage: resolution [WxH|W H]\n");
+            return;
+        }
+        first[fi++] = *args++;
+    }
+    first[fi] = '\0';
+
+    if (*args == 'x' || *args == 'X') {
+        args++;
+        while (*args && *args != ' ') {
+            if (si + 1 >= sizeof(second)) {
+                ck_puts("resolution: usage: resolution [WxH|W H]\n");
+                return;
+            }
+            second[si++] = *args++;
+        }
+    } else {
+        while (*args == ' ')
+            args++;
+        while (*args && *args != ' ') {
+            if (si + 1 >= sizeof(second)) {
+                ck_puts("resolution: usage: resolution [WxH|W H]\n");
+                return;
+            }
+            second[si++] = *args++;
+        }
+    }
+    second[si] = '\0';
+
+    while (*args == ' ')
+        args++;
+    if (!first[0] || !second[0] || *args) {
+        ck_puts("resolution: usage: resolution [WxH|W H]\n");
+        return;
+    }
+
+    if (parse_u32_arg(first, &width) != 0 || parse_u32_arg(second, &height) != 0) {
+        ck_puts("resolution: width and height must be positive integers\n");
+        return;
+    }
+
+    if (ck_display_set_resolution(width, height) != 0) {
+        ck_puts("resolution: invalid resolution (must be in range 1..4096)\n");
+        return;
+    }
+
+    ck_display_get_resolution(&width, &height);
+    ck_printk("resolution: set to %ux%u\n", (unsigned int)width, (unsigned int)height);
+}
+
 /* ── Command dispatcher ──────────────────────────────────────────────── */
 
 static void shell_exec(char *line)
@@ -1277,6 +1369,7 @@ static void shell_exec(char *line)
     else if (strcmp(line, "ssh")       == 0) cmd_ssh();
     else if (strcmp(line, "mouse")     == 0) cmd_mouse();
     else if (strcmp(line, "scroll")    == 0) cmd_scroll(args);
+    else if (strcmp(line, "resolution") == 0) cmd_resolution(args);
     else if (strcmp(line, "credits")   == 0) cmd_credits();
     else if (strcmp(line, "kblayout")  == 0) cmd_kblayout(args);
     else if (strcmp(line, "layout")    == 0) cmd_kblayout(args);

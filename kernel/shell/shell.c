@@ -827,7 +827,8 @@ static void tree_print(const char *path, int depth)
     for (int i = 0; i < depth; i++)
         ck_puts("  ");
 
-    if (depth == 0 && path[0] == '/' && path[1] == '\0')
+    int is_root = (depth == 0 && path[0] == '/' && path[1] == '\0');
+    if (is_root)
         ck_puts("/\n");
     else
         ck_printk("%s%s\n", node->name, (node->type == VFS_DIR) ? "/" : "");
@@ -840,8 +841,8 @@ static void tree_print(const char *path, int depth)
         return;
 
     char child_name[VFS_NAME_MAX];
+    char child_path[VFS_NAME_MAX];
     for (u32 i = 0; vfs_readdir(fd, i, child_name) == 0; i++) {
-        char child_path[VFS_NAME_MAX];
         size_t plen = strlen(path);
         size_t nlen = strlen(child_name);
         if (plen + 1 + nlen >= VFS_NAME_MAX)

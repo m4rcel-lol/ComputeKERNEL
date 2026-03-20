@@ -120,6 +120,16 @@ if ! grep -Eq 'ssh daemon scaffold available' kernel/shell/shell.c; then
     exit 1
 fi
 
+if ! grep -Eq 'TCP/IP network stack[[:space:]]+- In-kernel TCP/IP \(lwIP; foundation parsing/status wired\)' README.md; then
+    echo "[test] expected roadmap TCP/IP implementation choice to be lwIP"
+    exit 1
+fi
+
+if ! grep -Eq 'serial/VFS-backed console' README.md; then
+    echo "[test] expected roadmap/docs console direction to reference VFS-backed console"
+    exit 1
+fi
+
 if ! grep -Eq 'setup-guide' kernel/shell/shell.c; then
     echo "[test] expected setup-guide command support in shell"
     exit 1

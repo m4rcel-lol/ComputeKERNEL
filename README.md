@@ -10,10 +10,10 @@
 > - `make lint` — shell/python syntax checks
 > - `make test` — scaffold checks (+ rust check when `rust/Cargo.toml` exists)
 >
-> Current shell highlights (`cksh`): `setup`, `setup-guide`, `setup-alpine` (alias), `arch-install` (deprecated alias),
+> Current shell highlights (`cksh`): `setup`, `setup-guide`, `setup-alpine` (alias), `arch-install` (deprecated, use `setup`),
 > `kblayout`/`layout`, `netinfo`, `mouse`, and `credits`.
 >
-> Networking note: main ISO does **not** yet ship a full in-kernel TCP/IP stack or SSH daemon; the `2222->22` forward is host-side VM plumbing.
+> Networking note: main ISO does **not** yet ship a full in-kernel TCP/IP stack or SSH daemon; the `localhost:2222` to guest `:22` forward is host-side VM plumbing.
 
 ## Section 1 — Executive technical definition
 

@@ -75,8 +75,13 @@ if ! grep -Eq 'net_init\(\)' kernel/init/main.c; then
     exit 1
 fi
 
-if ! grep -Eq 'foundation ready \(ethertype=' kernel/shell/shell.c; then
-    echo "[test] expected ssh command to report networking foundation status details"
+if ! grep -Eq 'foundation ready' kernel/shell/shell.c; then
+    echo "[test] expected ssh command to report networking foundation readiness"
+    exit 1
+fi
+
+if ! grep -Eq 'ethertype=0x%04x' kernel/shell/shell.c; then
+    echo "[test] expected ssh command to include networking ethertype details"
     exit 1
 fi
 

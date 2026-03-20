@@ -75,13 +75,18 @@ if ! grep -Eq 'rm \[-r\] <path>' kernel/shell/shell.c; then
     exit 1
 fi
 
-if ! grep -Eq 'VGA 80x25' kernel/shell/shell.c; then
-    echo "[test] expected updated default terminal resolution in shell info"
+if ! grep -Eq 'Terminal: VGA %ux%u' kernel/shell/shell.c; then
+    echo "[test] expected terminal resolution output to use dynamic VGA dimensions"
     exit 1
 fi
 
 if ! grep -Eq '\bmouse\b' kernel/shell/shell.c; then
     echo "[test] expected mouse command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\bresolution\b' kernel/shell/shell.c; then
+    echo "[test] expected resolution command support in shell"
     exit 1
 fi
 

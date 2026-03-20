@@ -13,6 +13,8 @@ void ck_printk(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void ck_console_scroll_up(u32 lines);
 void ck_console_scroll_down(u32 lines);
 void ck_console_scroll_reset(void);
+int  ck_display_set_resolution(u32 width, u32 height);
+void ck_display_get_resolution(u32 *width, u32 *height);
 
 /* VGA foreground color constants (background is always black) */
 #define CK_COLOR_BLACK        0

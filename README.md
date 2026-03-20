@@ -1,5 +1,20 @@
 # ComputeKERNEL Master Architecture + Implementation Specification
 
+> **Status update (March 2026):** this document still contains long-form architecture/spec planning content.  
+> For day-to-day development, treat the current repository code and scripts as authoritative.
+>
+> Quick current commands:
+> - `make kernel` — build `out/computekernel.elf`
+> - `make iso` — build bootable ISO via `scripts/build-iso.sh`
+> - `make qemu` / `make kvm` — run in VM (QEMU user networking forwards `localhost:2222` to guest `:22`)
+> - `make lint` — shell/python syntax checks
+> - `make test` — scaffold checks (+ rust check when `rust/Cargo.toml` exists)
+>
+> Current shell highlights (`cksh`): `setup`, `setup-guide`, `setup-alpine` (alias), `arch-install` (deprecated, use `setup`),
+> `kblayout`/`layout`, `netinfo`, `mouse`, and `credits`.
+>
+> Networking note: main ISO does **not** yet ship a full in-kernel TCP/IP stack or SSH daemon; the `localhost:2222` to guest `:22` forward is host-side VM plumbing.
+
 ## Section 1 — Executive technical definition
 
 ### What ComputeKERNEL is
@@ -1257,12 +1272,15 @@ Two physical x86_64 systems boot from USB ISO in safe mode and normal mode; seri
 
 ### 6) Commands to build and run
 ```bash
-make ARCH=x86_64 PROFILE=debug all
-make ARCH=x86_64 PROFILE=debug iso
+make kernel
+make iso
 make qemu
 make run      # alias to qemu
+make kvm
 make gdb
+make lint
 make test
+make rust-check
 make size-report
 ```
 

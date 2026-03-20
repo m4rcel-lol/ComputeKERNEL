@@ -70,6 +70,7 @@ static char shell_clipboard[SHELL_LINE_MAX];
 
 static void shell_exec(char *line);
 static void cmd_installer_style(void);
+static void shell_print_banner(void);
 
 static int parse_u32_arg(const char *s, u32 *out)
 {
@@ -231,8 +232,10 @@ static void cmd_help(void)
     ck_reset_color();
     ck_puts("  uname                 print kernel/OS information\n");
     ck_puts("  fastfetch             display system information\n");
+    ck_puts("  neofetch              alias for fastfetch\n");
     ck_puts("  free                  show free memory pages\n");
     ck_puts("  mem                   show detailed memory statistics\n");
+    ck_puts("  motd                  show session status summary\n");
 
     ck_set_color(CK_COLOR_YELLOW);
     ck_puts("[ FILES ]\n");
@@ -273,6 +276,9 @@ static void cmd_help(void)
     ck_puts("  scroll [up|down|top|bottom]  navigate shell scrollback buffer (default: up)\n");
     ck_puts("  resolution [WxH|W H] set or show display resolution (default: 80x25)\n");
     ck_puts("  credits               show ComputeKERNEL credits\n");
+    ck_puts("  banner                show startup banner again\n");
+    ck_puts("  palette               show terminal color palette\n");
+    ck_puts("  tips                  show shell productivity tips\n");
     ck_puts("  kblayout              configure keyboard layout interactively\n");
     ck_puts("  layout                alias for kblayout\n");
     ck_puts("  kblayout list         list available keyboard layouts\n");
@@ -1239,6 +1245,93 @@ static void cmd_ssh(void)
     ck_puts("  status    : use host command ssh -p 2222 root@localhost\n");
 }
 
+static void cmd_motd(void)
+{
+    u64 ticks = pit_get_ticks();
+    u64 uptime_s = ticks / PIT_HZ;
+    u64 uptime_m = uptime_s / 60;
+    u64 uptime_h = uptime_m / 60;
+    u64 free_pages  = pmm_free_pages();
+    u64 total_pages = pmm_total_pages();
+    u64 used_pages  = total_pages - free_pages;
+    u32 display_w = 0, display_h = 0;
+    ck_display_get_resolution(&display_w, &display_h);
+
+    ck_set_color(CK_COLOR_LIGHT_CYAN);
+    ck_puts("+-------------------- session status --------------------+\n");
+    ck_reset_color();
+    ck_printk(" user      : %s\n", SHELL_USER);
+    ck_printk(" host      : %s\n", SHELL_HOSTNAME);
+    ck_printk(" cwd       : %s\n", shell_cwd);
+    ck_printk(" terminal  : VGA %ux%u\n", (unsigned int)display_w, (unsigned int)display_h);
+    ck_printk(" uptime    : %llu:%02llu:%02llu\n", uptime_h, uptime_m % 60, uptime_s % 60);
+    ck_printk(" memory    : %llu / %llu KiB used (%llu KiB free)\n",
+              used_pages * 4ULL, total_pages * 4ULL, free_pages * 4ULL);
+    if (ck_network_available())
+        ck_printk(" network   : boot packet available (%u bytes)\n",
+                  (unsigned int)ck_boot_network_packet_size());
+    else
+        ck_puts(" network   : boot packet not available\n");
+    ck_set_color(CK_COLOR_LIGHT_CYAN);
+    ck_puts("+--------------------------------------------------------+\n");
+    ck_reset_color();
+}
+
+static void cmd_palette(void)
+{
+    struct {
+        u8 color;
+        const char *name;
+    } swatches[] = {
+        { CK_COLOR_BLACK, "black" },
+        { CK_COLOR_BLUE, "blue" },
+        { CK_COLOR_GREEN, "green" },
+        { CK_COLOR_CYAN, "cyan" },
+        { CK_COLOR_RED, "red" },
+        { CK_COLOR_MAGENTA, "magenta" },
+        { CK_COLOR_BROWN, "brown" },
+        { CK_COLOR_LIGHT_GRAY, "light-gray" },
+        { CK_COLOR_DARK_GRAY, "dark-gray" },
+        { CK_COLOR_LIGHT_BLUE, "light-blue" },
+        { CK_COLOR_LIGHT_GREEN, "light-green" },
+        { CK_COLOR_LIGHT_CYAN, "light-cyan" },
+        { CK_COLOR_LIGHT_RED, "light-red" },
+        { CK_COLOR_PINK, "pink" },
+        { CK_COLOR_YELLOW, "yellow" },
+        { CK_COLOR_WHITE, "white" },
+    };
+    ck_puts("palette: VGA text colors\n");
+    for (u32 i = 0; i < (u32)(sizeof(swatches) / sizeof(swatches[0])); i++) {
+        ck_set_color(swatches[i].color);
+        ck_printk("  [%2u] %s", (unsigned int)i, swatches[i].name);
+        ck_reset_color();
+        ck_puts("\n");
+    }
+}
+
+static void cmd_tips(void)
+{
+    ck_puts("cksh quick tips:\n");
+    ck_puts("  - Use Up/Down arrows for command history\n");
+    ck_puts("  - Use Ctrl+X to cut the current line, Ctrl+V to paste\n");
+    ck_puts("  - Use PgUp/PgDn or 'scroll' to navigate shell output\n");
+    ck_puts("  - Use 'motd' for a compact status summary\n");
+    ck_puts("  - Use 'fastfetch' for full system overview\n");
+    ck_puts("  - Use 'kblayout' to switch keyboard layout interactively\n");
+}
+
+static void shell_print_banner(void)
+{
+    ck_puts("\n");
+    ck_set_color(CK_COLOR_LIGHT_GREEN);
+    ck_puts("   ######   ##   ##\n");
+    ck_puts("  ##       ## ## ##   ComputeKERNEL\n");
+    ck_puts("  ##       ##  ###    Lightweight x86_64 OS shell\n");
+    ck_puts("  ##       ## ## ##\n");
+    ck_puts("   ######  ##   ##\n");
+    ck_reset_color();
+}
+
 static void cmd_scroll(const char *args)
 {
     if (!args || !*args || strcmp(args, "up") == 0) {
@@ -1358,6 +1451,7 @@ static void shell_exec(char *line)
     else if (strcmp(line, "clear")     == 0) cmd_clear();
     else if (strcmp(line, "uname")     == 0) cmd_uname();
     else if (strcmp(line, "fastfetch") == 0) cmd_fastfetch();
+    else if (strcmp(line, "neofetch")  == 0) cmd_fastfetch();
     else if (strcmp(line, "free")      == 0) cmd_free();
     else if (strcmp(line, "mem")       == 0) cmd_mem();
     else if (strcmp(line, "ls")        == 0) cmd_ls(args);
@@ -1392,10 +1486,14 @@ static void shell_exec(char *line)
     else if (strcmp(line, "sudo")      == 0) cmd_sudo(args);
     else if (strcmp(line, "netinfo")   == 0) cmd_netinfo();
     else if (strcmp(line, "ssh")       == 0) cmd_ssh();
+    else if (strcmp(line, "motd")      == 0) cmd_motd();
     else if (strcmp(line, "mouse")     == 0) cmd_mouse();
+    else if (strcmp(line, "palette")   == 0) cmd_palette();
+    else if (strcmp(line, "tips")      == 0) cmd_tips();
     else if (strcmp(line, "scroll")    == 0) cmd_scroll(args);
     else if (strcmp(line, "resolution") == 0) cmd_resolution(args);
     else if (strcmp(line, "credits")   == 0) cmd_credits();
+    else if (strcmp(line, "banner")    == 0) shell_print_banner();
     else if (strcmp(line, "kblayout")  == 0) cmd_kblayout(args);
     else if (strcmp(line, "layout")    == 0) cmd_kblayout(args);
     else
@@ -1437,10 +1535,11 @@ void task_shell(void *arg)
     /* Yield once so boot log flushes without blocking on PIT tick timing. */
     sched_yield();
 
+    shell_print_banner();
     ck_set_color(CK_COLOR_LIGHT_GREEN);
-    ck_puts("\nWelcome to ComputeKERNEL!");
+    ck_puts("Welcome to ComputeKERNEL");
     ck_reset_color();
-    ck_puts("  Type 'help' for a list of commands.\n\n");
+    ck_puts("  Type 'help' for commands, 'tips' for shortcuts, 'motd' for status.\n\n");
     print_prompt();
 
     for (;;) {

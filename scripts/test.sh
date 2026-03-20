@@ -90,6 +90,31 @@ if ! grep -Eq '\[ SYSTEM INFO \]' kernel/shell/shell.c; then
     exit 1
 fi
 
+if ! grep -Eq '\bmotd\b' kernel/shell/shell.c; then
+    echo "[test] expected motd command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\bpalette\b' kernel/shell/shell.c; then
+    echo "[test] expected palette command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\btips\b' kernel/shell/shell.c; then
+    echo "[test] expected tips command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\bbanner\b' kernel/shell/shell.c; then
+    echo "[test] expected banner command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\bneofetch\b' kernel/shell/shell.c; then
+    echo "[test] expected neofetch alias support in shell"
+    exit 1
+fi
+
 if ! grep -Eq 'Terminal: VGA %ux%u' kernel/shell/shell.c; then
     echo "[test] expected terminal resolution output to use dynamic VGA dimensions"
     exit 1

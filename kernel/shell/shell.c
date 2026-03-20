@@ -275,7 +275,7 @@ static void cmd_help(void)
     ck_puts("  arch-install          legacy alias for setup\n");
     ck_puts("  sudo <command>        execute command as root (live environment)\n");
     ck_puts("  netinfo               show boot-time network status\n");
-    ck_puts("  ssh                   show current SSH support status\n");
+    ck_puts("  ssh [status|enable|disable]  show or set SSH scaffold status\n");
     ck_puts("  mouse                 show PS/2 mouse status and position\n");
     ck_puts("  scroll [up|down|top|bottom]  navigate shell scrollback buffer (default: up)\n");
     ck_puts("  resolution [WxH|W H] set or show display resolution (default: 80x25)\n");
@@ -1344,6 +1344,7 @@ static void cmd_netinfo(void)
 static void cmd_ssh(void)
 {
     ck_puts("ssh: secure shell access overview\n");
+    ck_puts("  control   : ssh [status|enable|disable]\n");
     ck_puts("  host-side : TCP localhost:2222 -> guest:22 (QEMU user networking)\n");
     if (sshd_is_available()) {
         ck_printk("  in-kernel : ssh daemon scaffold available (%s)\n",
@@ -1358,6 +1359,32 @@ static void cmd_ssh(void)
                   net_has_boot_tcp() ? "yes" : "no");
     }
     ck_puts("  connect   : use host command ssh -p 2222 root@localhost\n");
+}
+
+static void cmd_ssh_control(const char *args)
+{
+    if (!args || !*args || strcmp(args, "status") == 0) {
+        cmd_ssh();
+        return;
+    }
+
+    if (strcmp(args, "enable") == 0) {
+        if (sshd_set_enabled(1) == 0)
+            ck_puts("ssh: in-kernel daemon scaffold enabled\n");
+        else
+            ck_puts("ssh: in-kernel daemon scaffold unavailable in this build\n");
+        return;
+    }
+
+    if (strcmp(args, "disable") == 0) {
+        if (sshd_set_enabled(0) == 0)
+            ck_puts("ssh: in-kernel daemon scaffold disabled\n");
+        else
+            ck_puts("ssh: in-kernel daemon scaffold unavailable in this build\n");
+        return;
+    }
+
+    ck_puts("ssh: usage: ssh [status|enable|disable]\n");
 }
 
 static void cmd_motd(void)
@@ -1694,7 +1721,7 @@ static void shell_exec(char *line)
     }
     else if (strcmp(line, "sudo")      == 0) cmd_sudo(args);
     else if (strcmp(line, "netinfo")   == 0) cmd_netinfo();
-    else if (strcmp(line, "ssh")       == 0) cmd_ssh();
+    else if (strcmp(line, "ssh")       == 0) cmd_ssh_control(args);
     else if (strcmp(line, "motd")      == 0) cmd_motd();
     else if (strcmp(line, "mouse")     == 0) cmd_mouse();
     else if (strcmp(line, "palette")   == 0) cmd_palette();

@@ -130,6 +130,21 @@ if ! grep -Eq 'ssh daemon scaffold available' kernel/shell/shell.c; then
     exit 1
 fi
 
+if ! grep -Eq 'sshd_set_enabled' include/ck/ssh.h; then
+    echo "[test] expected ssh header to expose scaffold enable/disable control API"
+    exit 1
+fi
+
+if ! grep -Eq 'sshd_set_enabled\(' kernel/net/sshd.c; then
+    echo "[test] expected ssh daemon scaffold module to implement enable/disable control API"
+    exit 1
+fi
+
+if ! grep -Eq 'ssh \[status\|enable\|disable\]' kernel/shell/shell.c; then
+    echo "[test] expected shell ssh help/usage to include status/enable/disable controls"
+    exit 1
+fi
+
 if ! grep -Eq 'TCP/IP network stack[[:space:]]+- In-kernel TCP/IP \(lwIP; foundation parsing/status wired\)' README.md; then
     echo "[test] expected roadmap TCP/IP implementation choice to be lwIP"
     exit 1

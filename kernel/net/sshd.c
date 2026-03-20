@@ -20,3 +20,11 @@ int sshd_is_enabled(void)
 {
     return g_sshd_enabled;
 }
+
+int sshd_set_enabled(int enabled)
+{
+    if (!g_sshd_available)
+        return -1;
+    g_sshd_enabled = enabled ? 1 : 0;
+    return 0;
+}

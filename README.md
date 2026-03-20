@@ -308,9 +308,10 @@ Below format: **Purpose | Responsibilities | Structures/APIs | Files | Dependenc
 - uid/gid/cap-like minimal checks.
 - Files: `kernel/cred.c`, `include/ck/cred.h`.
 
-21. **networking core**
-- packet buffers, NIC abstraction, IPv4 roadmap.
-- Files: `net/core/skb.c`, `net/ipv4/ip.c`.
+21. **networking core (planned)**
+- current state in main ISO: boot-time Multiboot2 network tag visibility only.
+- planned: packet buffers, NIC abstraction, IPv4 stack.
+- Files: planned under `net/*` (not implemented yet).
 
 22. **module loader**
 - relocations, symbol lookup, dependency checks.
@@ -343,7 +344,7 @@ Below format: **Purpose | Responsibilities | Structures/APIs | Files | Dependenc
 - `mm/`: allocators and VMM; used by nearly all subsystems.
 - `fs/`: VFS + concrete filesystems; consumes block/char interfaces.
 - `drivers/`: hardware drivers + device model.
-- `net/`: protocol stack and socket layer.
+- `net/`: reserved for future protocol stack and socket layer (not implemented yet).
 - `ipc/`: signals/pipes/queues.
 - `lib/`: freestanding libc-like helpers.
 - `include/`: kernel headers and subsystem contracts.
@@ -413,14 +414,7 @@ ComputeKERNEL/
 │   ├── block/ata_pio.c
 │   ├── block/virtio_blk.c
 │   ├── input/ps2kbd.c
-│   ├── timer/pit.c
-│   └── net/virtio_net.c
-├── net/
-│   ├── core/skb.c
-│   ├── core/socket.c
-│   ├── ipv4/ip.c
-│   ├── ipv4/udp.c
-│   └── ipv4/tcp.c
+│   └── timer/pit.c
 ├── ipc/
 │   ├── signal.c
 │   └── pipe.c
@@ -575,7 +569,7 @@ Document CPU, firmware mode, chipset/storage/NIC, result, regression status in `
 - TSC (invariant preferred)
 
 ### Safe mode boot
-`ck.safe=1` disables modules, networking, and non-essential drivers; uses conservative memory/timer settings.
+`ck.safe=1` disables modules and non-essential drivers; networking stack is not available in main ISO yet.
 
 ---
 
@@ -952,8 +946,8 @@ python3 tools/mkfs_image.py --rootfs rootfs/ --out out/initrd.img --size-mb 512
 - done: basic interactive console
 
 12. **Networking**
-- files: `net/*`, `drivers/net/*`
-- done: packet tx/rx smoke test
+- files: planned under `net/*`, `drivers/net/*`
+- status: not implemented in main ISO yet (roadmap item)
 
 13. **Modules**
 - files: `kernel/module/*`
@@ -1152,9 +1146,13 @@ set -eu
 qemu-system-x86_64 \
   -m 1024 \
   -cdrom out/computekernel.iso \
+  -netdev user,id=net0,hostfwd=tcp::2222-:22 \
+  -device e1000,netdev=net0 \
   -serial stdio \
   -no-reboot
 ```
+
+Note: the QEMU forward (`localhost:2222 -> guest:22`) is host-side plumbing. Main ISO currently has no in-kernel TCP/IP or SSH daemon yet.
 
 ### 13) Python generation helper (`tools/gen_syscalls.py`)
 ```python

@@ -65,6 +65,21 @@ if ! grep -Eq '\bnetinfo\b' kernel/shell/shell.c; then
     exit 1
 fi
 
+if ! grep -Eq 'setup-guide' kernel/shell/shell.c; then
+    echo "[test] expected setup-guide command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq 'rm \[-r\] <path>' kernel/shell/shell.c; then
+    echo "[test] expected recursive rm help usage in shell"
+    exit 1
+fi
+
+if ! grep -Eq 'VGA 80x50' kernel/shell/shell.c; then
+    echo "[test] expected updated default terminal resolution in shell info"
+    exit 1
+fi
+
 if ! grep -Eq '\bmouse\b' kernel/shell/shell.c; then
     echo "[test] expected mouse command support in shell"
     exit 1

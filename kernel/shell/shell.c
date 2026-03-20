@@ -53,6 +53,7 @@ extern u64  pmm_free_pages(void);
 #define SHELL_HIST_MAX  16
 #define SHELL_HIST_LEN  SHELL_LINE_MAX
 #define SHELL_SCROLL_TO_TOP_LINES 1000U
+#define PATH_SEG_MAX 128
 
 static char shell_hist[SHELL_HIST_MAX][SHELL_HIST_LEN];
 static int  shell_hist_count = 0;
@@ -68,6 +69,7 @@ static char shell_cwd[VFS_NAME_MAX] = "/";
 static char shell_clipboard[SHELL_LINE_MAX];
 
 static void shell_exec(char *line);
+static void cmd_installer_style(void);
 
 /* ── History helpers ─────────────────────────────────────────────────── */
 
@@ -97,33 +99,96 @@ static const char *hist_get(int offset)
 
 /* ── Path helper ─────────────────────────────────────────────────────── */
 
-/* Resolve 'arg' relative to shell_cwd into 'out' (VFS_NAME_MAX bytes). */
-static void path_resolve(const char *arg, char *out)
+static int path_normalize_abs(const char *in, char *out)
 {
+    if (!in || in[0] != '/')
+        return -1;
+
+    size_t in_len = strlen(in);
+    if (in_len >= VFS_NAME_MAX)
+        return -1;
+
+    char tmp[VFS_NAME_MAX];
+    memcpy(tmp, in, in_len + 1);
+
+    int seg_start[PATH_SEG_MAX];
+    int seg_count = 0;
+    size_t out_len = 1;
+    out[0] = '/';
+    out[1] = '\0';
+
+    size_t i = 1;
+    while (tmp[i]) {
+        while (tmp[i] == '/')
+            i++;
+        if (!tmp[i])
+            break;
+
+        size_t start = i;
+        while (tmp[i] && tmp[i] != '/')
+            i++;
+        size_t len = i - start;
+
+        if (len == 1 && tmp[start] == '.')
+            continue;
+        if (len == 2 && tmp[start] == '.' && tmp[start + 1] == '.') {
+            if (seg_count > 0) {
+                out_len = (size_t)seg_start[--seg_count];
+                out[out_len] = '\0';
+            }
+            continue;
+        }
+
+        if (out_len > 1) {
+            if (out_len + 1 >= VFS_NAME_MAX)
+                return -1;
+            out[out_len++] = '/';
+        }
+
+        if (out_len + len >= VFS_NAME_MAX)
+            return -1;
+        if (seg_count >= PATH_SEG_MAX)
+            return -1;
+        seg_start[seg_count++] = (int)(out_len > 1 ? out_len - 1 : 1);
+        memcpy(out + out_len, tmp + start, len);
+        out_len += len;
+        out[out_len] = '\0';
+    }
+
+    return 0;
+}
+
+/* Resolve 'arg' relative to shell_cwd into 'out' (VFS_NAME_MAX bytes). */
+static int path_resolve(const char *arg, char *out)
+{
+    char combined[VFS_NAME_MAX];
+
     if (!arg || !*arg) {
-        strncpy(out, shell_cwd, VFS_NAME_MAX - 1);
-        out[VFS_NAME_MAX - 1] = '\0';
-        return;
+        return path_normalize_abs(shell_cwd, out);
     }
     if (arg[0] == '/') {
-        strncpy(out, arg, VFS_NAME_MAX - 1);
-        out[VFS_NAME_MAX - 1] = '\0';
-        return;
+        return path_normalize_abs(arg, out);
     }
     /* Relative path: prepend CWD */
     size_t cwdlen = strlen(shell_cwd);
     size_t arglen = strlen(arg);
     if (cwdlen + 1 + arglen >= VFS_NAME_MAX) {
-        /* fallback: use CWD unchanged */
-        strncpy(out, shell_cwd, VFS_NAME_MAX - 1);
-        out[VFS_NAME_MAX - 1] = '\0';
-        return;
+        return -1;
     }
-    memcpy(out, shell_cwd, cwdlen);
-    if (out[cwdlen - 1] != '/') {
-        out[cwdlen++] = '/';
+    memcpy(combined, shell_cwd, cwdlen);
+    if (combined[cwdlen - 1] != '/') {
+        combined[cwdlen++] = '/';
     }
-    memcpy(out + cwdlen, arg, arglen + 1);
+    memcpy(combined + cwdlen, arg, arglen + 1);
+    return path_normalize_abs(combined, out);
+}
+
+static int path_resolve_or_error(const char *cmd, const char *arg, char *out)
+{
+    if (path_resolve(arg, out) == 0)
+        return 0;
+    ck_printk("%s: %s: path is too long\n", cmd, (arg && *arg) ? arg : "/");
+    return -1;
 }
 
 /* ── Built-in commands ───────────────────────────────────────────────── */
@@ -145,7 +210,7 @@ static void cmd_help(void)
     ck_puts("  write <path> <text>   write text to a file (overwrites)\n");
     ck_puts("  cp <src> <dst>        copy a file\n");
     ck_puts("  mv <src> <dst>        move/rename a file or directory\n");
-    ck_puts("  rm <path>             remove a file\n");
+    ck_puts("  rm [-r] <path>        remove a file (or directory with -r)\n");
     ck_puts("  mkdir <path>          create a directory\n");
     ck_puts("  rmdir <path>          remove an empty directory\n");
     ck_puts("  hexdump <path>        hex dump file contents\n");
@@ -159,9 +224,10 @@ static void cmd_help(void)
     ck_puts("  sleep <n>             sleep for n seconds\n");
     ck_puts("  reboot                reboot the system\n");
     ck_puts("  halt                  halt the system\n");
-    ck_puts("  setup                 display hardware installation guide\n");
-    ck_puts("  setup-alpine          run interactive installer-style setup\n");
-    ck_puts("  arch-install          run interactive installer-style setup\n");
+    ck_puts("  setup                 run interactive installer-style setup\n");
+    ck_puts("  setup-guide           display hardware installation guide\n");
+    ck_puts("  setup-alpine          alias for setup\n");
+    ck_puts("  arch-install          legacy alias for setup\n");
     ck_puts("  sudo <command>        execute command as root (live environment)\n");
     ck_puts("  netinfo               show boot-time network status\n");
     ck_puts("  ssh                   show current SSH support status\n");
@@ -247,7 +313,7 @@ static void cmd_fastfetch(void)
 
     /* Lines 8+ : no art, just info */
     ck_puts("                   Hostname: " SHELL_HOSTNAME "\n");
-    ck_puts("                   Terminal: VGA 80x25\n");
+    ck_puts("                   Terminal: VGA 80x50\n");
     ck_printk("                   Uptime:   %llu:%02llu:%02llu\n",
               uptime_h, uptime_m % 60, uptime_s % 60);
     ck_printk("                   Memory:   %llu / %llu KiB used\n",
@@ -280,7 +346,8 @@ static void cmd_mem(void)
 static void cmd_ls(const char *path)
 {
     char resolved[VFS_NAME_MAX];
-    path_resolve(path, resolved);
+    if (path_resolve_or_error("ls", path, resolved) < 0)
+        return;
 
     struct vfs_node *node = vfs_lookup(resolved);
     if (!node) {
@@ -338,11 +405,12 @@ static void cmd_cat(const char *path)
     }
 
     char resolved[VFS_NAME_MAX];
-    path_resolve(path, resolved);
+    if (path_resolve_or_error("cat", path, resolved) < 0)
+        return;
 
     int fd = vfs_open(resolved, O_RDONLY);
     if (fd < 0) {
-        ck_printk("cat: %s: No such file or directory\n", path);
+        ck_printk("cat: %s: No such file or directory\n", resolved);
         return;
     }
 
@@ -363,11 +431,12 @@ static void cmd_stat(const char *path)
     }
 
     char resolved[VFS_NAME_MAX];
-    path_resolve(path, resolved);
+    if (path_resolve_or_error("stat", path, resolved) < 0)
+        return;
 
     struct vfs_node *node = vfs_lookup(resolved);
     if (!node) {
-        ck_printk("stat: %s: No such file or directory\n", path);
+        ck_printk("stat: %s: No such file or directory\n", resolved);
         return;
     }
 
@@ -386,11 +455,12 @@ static void cmd_touch(const char *path)
     }
 
     char resolved[VFS_NAME_MAX];
-    path_resolve(path, resolved);
+    if (path_resolve_or_error("touch", path, resolved) < 0)
+        return;
 
     int fd = vfs_open(resolved, O_CREAT | O_WRONLY);
     if (fd < 0) {
-        ck_printk("touch: %s: cannot create file\n", path);
+        ck_printk("touch: %s: cannot create file\n", resolved);
         return;
     }
     vfs_close(fd);
@@ -420,11 +490,12 @@ static void cmd_write(const char *args)
     const char *text = p + 1;
 
     char resolved[VFS_NAME_MAX];
-    path_resolve(path, resolved);
+    if (path_resolve_or_error("write", path, resolved) < 0)
+        return;
 
     int fd = vfs_open(resolved, O_WRONLY | O_CREAT | O_TRUNC);
     if (fd < 0) {
-        ck_printk("write: %s: cannot open file\n", path);
+        ck_printk("write: %s: cannot open file\n", resolved);
         return;
     }
     size_t len = strlen(text);
@@ -457,19 +528,20 @@ static void cmd_cp(const char *args)
     while (*dst_arg == ' ') dst_arg++;
 
     char src_res[VFS_NAME_MAX], dst_res[VFS_NAME_MAX];
-    path_resolve(src, src_res);
-    path_resolve(dst_arg, dst_res);
+    if (path_resolve_or_error("cp", src, src_res) < 0 ||
+        path_resolve_or_error("cp", dst_arg, dst_res) < 0)
+        return;
 
     int in = vfs_open(src_res, O_RDONLY);
     if (in < 0) {
-        ck_printk("cp: %s: No such file or directory\n", src);
+        ck_printk("cp: %s: No such file or directory\n", src_res);
         return;
     }
 
     int out = vfs_open(dst_res, O_WRONLY | O_CREAT | O_TRUNC);
     if (out < 0) {
         vfs_close(in);
-        ck_printk("cp: %s: cannot create\n", dst_arg);
+        ck_printk("cp: %s: cannot create\n", dst_res);
         return;
     }
 
@@ -506,34 +578,106 @@ static void cmd_mv(const char *args)
     while (*dst_arg == ' ') dst_arg++;
 
     char src_res[VFS_NAME_MAX], dst_res[VFS_NAME_MAX];
-    path_resolve(src, src_res);
-    path_resolve(dst_arg, dst_res);
+    if (path_resolve_or_error("mv", src, src_res) < 0 ||
+        path_resolve_or_error("mv", dst_arg, dst_res) < 0)
+        return;
 
     if (vfs_rename(src_res, dst_res) < 0)
-        ck_printk("mv: cannot rename '%s' to '%s'\n", src, dst_arg);
+        ck_printk("mv: cannot rename '%s' to '%s'\n", src_res, dst_res);
 }
 
-static void cmd_rm(const char *path)
+static int rm_recursive(const char *path)
 {
-    if (!path || !*path) {
+    struct vfs_node *node = vfs_lookup(path);
+    if (!node)
+        return -1;
+    if (node->type != VFS_DIR)
+        return vfs_unlink(path);
+
+    int fd = vfs_open(path, O_RDONLY);
+    if (fd < 0)
+        return -1;
+
+    char name[VFS_NAME_MAX];
+    while (vfs_readdir(fd, 0, name) == 0) {
+        char child[VFS_NAME_MAX];
+        size_t plen = strlen(path);
+        size_t nlen = strlen(name);
+        if (plen + 1 + nlen >= VFS_NAME_MAX) {
+            vfs_close(fd);
+            return -1;
+        }
+        memcpy(child, path, plen);
+        if (child[plen - 1] != '/')
+            child[plen++] = '/';
+        memcpy(child + plen, name, nlen + 1);
+        if (rm_recursive(child) < 0) {
+            vfs_close(fd);
+            return -1;
+        }
+    }
+    vfs_close(fd);
+    return vfs_unlink(path);
+}
+
+static void cmd_rm(const char *args)
+{
+    if (!args || !*args) {
+        ck_puts("rm: missing operand\n");
+        return;
+    }
+
+    int is_recursive = 0;
+    int force = 0;
+    const char *path = args;
+    while (*path == ' ')
+        path++;
+    while (*path == '-') {
+        if (path[1] == '-' && (path[2] == '\0' || path[2] == ' ')) {
+            path += 2;
+            while (*path == ' ')
+                path++;
+            break;
+        }
+        if (path[1] == '\0' || path[1] == ' ')
+            break;
+        path++;
+        while (*path && *path != ' ') {
+            if (*path == 'r')
+                is_recursive = 1;
+            else if (*path == 'f')
+                force = 1;
+            else {
+                ck_printk("rm: invalid option -- '%c'\n", *path);
+                return;
+            }
+            path++;
+        }
+        while (*path == ' ')
+            path++;
+    }
+
+    if (!*path) {
         ck_puts("rm: missing operand\n");
         return;
     }
 
     char resolved[VFS_NAME_MAX];
-    path_resolve(path, resolved);
+    if (path_resolve_or_error("rm", path, resolved) < 0)
+        return;
 
     struct vfs_node *node = vfs_lookup(resolved);
     if (!node) {
-        ck_printk("rm: %s: No such file or directory\n", path);
+        if (!force)
+            ck_printk("rm: %s: No such file or directory\n", resolved);
         return;
     }
-    if (node->type == VFS_DIR) {
-        ck_printk("rm: %s: is a directory (use rmdir)\n", path);
+    if (node->type == VFS_DIR && !is_recursive) {
+        ck_printk("rm: %s: is a directory (use rm -r)\n", resolved);
         return;
     }
-    if (vfs_unlink(resolved) < 0)
-        ck_printk("rm: %s: cannot remove\n", path);
+    if ((is_recursive ? rm_recursive(resolved) : vfs_unlink(resolved)) < 0 && !force)
+        ck_printk("rm: %s: cannot remove\n", resolved);
 }
 
 static void cmd_mkdir(const char *path)
@@ -544,10 +688,11 @@ static void cmd_mkdir(const char *path)
     }
 
     char resolved[VFS_NAME_MAX];
-    path_resolve(path, resolved);
+    if (path_resolve_or_error("mkdir", path, resolved) < 0)
+        return;
 
     if (vfs_mkdir(resolved) < 0)
-        ck_printk("mkdir: %s: cannot create directory\n", path);
+        ck_printk("mkdir: %s: cannot create directory\n", resolved);
 }
 
 static void cmd_rmdir(const char *path)
@@ -558,19 +703,20 @@ static void cmd_rmdir(const char *path)
     }
 
     char resolved[VFS_NAME_MAX];
-    path_resolve(path, resolved);
+    if (path_resolve_or_error("rmdir", path, resolved) < 0)
+        return;
 
     struct vfs_node *node = vfs_lookup(resolved);
     if (!node) {
-        ck_printk("rmdir: %s: No such file or directory\n", path);
+        ck_printk("rmdir: %s: No such file or directory\n", resolved);
         return;
     }
     if (node->type != VFS_DIR) {
-        ck_printk("rmdir: %s: Not a directory\n", path);
+        ck_printk("rmdir: %s: Not a directory\n", resolved);
         return;
     }
     if (vfs_unlink(resolved) < 0)
-        ck_printk("rmdir: %s: cannot remove (may not be empty)\n", path);
+        ck_printk("rmdir: %s: cannot remove (may not be empty)\n", resolved);
 }
 
 static void cmd_hexdump(const char *path)
@@ -581,11 +727,12 @@ static void cmd_hexdump(const char *path)
     }
 
     char resolved[VFS_NAME_MAX];
-    path_resolve(path, resolved);
+    if (path_resolve_or_error("hexdump", path, resolved) < 0)
+        return;
 
     int fd = vfs_open(resolved, O_RDONLY);
     if (fd < 0) {
-        ck_printk("hexdump: %s: No such file or directory\n", path);
+        ck_printk("hexdump: %s: No such file or directory\n", resolved);
         return;
     }
 
@@ -623,15 +770,16 @@ static void cmd_cd(const char *path)
         shell_cwd[0] = '/'; shell_cwd[1] = '\0';
         return;
     }
-    path_resolve(path, resolved);
+    if (path_resolve_or_error("cd", path, resolved) < 0)
+        return;
 
     struct vfs_node *node = vfs_lookup(resolved);
     if (!node) {
-        ck_printk("cd: %s: No such file or directory\n", path);
+        ck_printk("cd: %s: No such file or directory\n", resolved);
         return;
     }
     if (node->type != VFS_DIR) {
-        ck_printk("cd: %s: Not a directory\n", path);
+        ck_printk("cd: %s: Not a directory\n", resolved);
         return;
     }
     strncpy(shell_cwd, resolved, VFS_NAME_MAX - 1);
@@ -751,6 +899,11 @@ static void cmd_halt(void)
 
 static void cmd_setup(void)
 {
+    cmd_installer_style();
+}
+
+static void cmd_setup_guide(void)
+{
     ck_set_color(CK_COLOR_LIGHT_CYAN);
     ck_puts("ComputeKERNEL Live Setup Guide\n");
     ck_reset_color();
@@ -792,7 +945,7 @@ static void cmd_setup(void)
     ck_puts("  - ComputeKERNEL currently runs entirely from RAM.\n");
     ck_puts("  - All files and changes are lost when the machine is powered off.\n");
     ck_puts("  - Use 'reboot' or 'halt' to cleanly exit the kernel.\n\n");
-    ck_puts("Use 'setup-alpine' (or 'arch-install') for interactive setup flow.\n");
+    ck_puts("Use 'setup' for the interactive setup flow.\n");
 }
 
 static int shell_readline(char *buf, int max_len)
@@ -1011,20 +1164,32 @@ static void cmd_mouse(void)
 
 static void cmd_netinfo(void)
 {
+    const u8 *packet = ck_boot_network_packet_data();
     u32 packet_size = ck_boot_network_packet_size();
+    ck_puts("netinfo: guest networking support\n");
+    ck_puts("  outbound: available with QEMU user networking (NAT)\n");
+    ck_puts("  inbound : hostfwd tcp localhost:2222 -> guest:22\n");
     if (!ck_network_available()) {
-        ck_puts("netinfo: no bootloader network packet available\n");
-        ck_puts("netinfo: QEMU user networking can be enabled via scripts/run-qemu.sh\n");
+        ck_puts("  boot pkt: not provided by bootloader\n");
         return;
     }
-    ck_printk("netinfo: bootloader provided network packet (%u bytes)\n", packet_size);
-    ck_puts("netinfo: packet visibility is available; full NIC/IP/TCP stack is pending\n");
+    ck_printk("  boot pkt: available (%u bytes)\n", packet_size);
+
+    if (packet && packet_size >= 14) {
+        u16 ethertype = ((u16)packet[12] << 8) | packet[13];
+        ck_printk("  frame   : dst %02x:%02x:%02x:%02x:%02x:%02x\n",
+                  packet[0], packet[1], packet[2], packet[3], packet[4], packet[5]);
+        ck_printk("            src %02x:%02x:%02x:%02x:%02x:%02x\n",
+                  packet[6], packet[7], packet[8], packet[9], packet[10], packet[11]);
+        ck_printk("            ethertype 0x%04x\n", (unsigned int)ethertype);
+    }
+    ck_puts("  status  : boot-time packet visibility is active in-kernel\n");
 }
 
 static void cmd_ssh(void)
 {
     ck_puts("ssh: host-side TCP forward configured for QEMU on localhost:2222 -> guest:22\n");
-    ck_puts("ssh: in-kernel SSH server is not available yet (network/TCP/crypto stack pending)\n");
+    ck_puts("ssh: in-kernel SSH server is not available yet\n");
 }
 
 static void cmd_scroll(const char *args)
@@ -1101,8 +1266,12 @@ static void shell_exec(char *line)
     else if (strcmp(line, "halt")      == 0) cmd_halt();
     else if (strcmp(line, "echo")      == 0) cmd_echo(args);
     else if (strcmp(line, "setup")     == 0) cmd_setup();
+    else if (strcmp(line, "setup-guide") == 0) cmd_setup_guide();
     else if (strcmp(line, "setup-alpine") == 0) cmd_installer_style();
-    else if (strcmp(line, "arch-install") == 0) cmd_installer_style();
+    else if (strcmp(line, "arch-install") == 0) {
+        ck_puts("arch-install: deprecated alias, running 'setup'\n");
+        cmd_setup();
+    }
     else if (strcmp(line, "sudo")      == 0) cmd_sudo(args);
     else if (strcmp(line, "netinfo")   == 0) cmd_netinfo();
     else if (strcmp(line, "ssh")       == 0) cmd_ssh();

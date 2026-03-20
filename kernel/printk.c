@@ -7,9 +7,11 @@
 /* ── VGA text console ───────────────────────────────────────────────── */
 #define VGA_BASE        ((volatile unsigned short *)0xb8000)
 #define VGA_COLS        80
-#define VGA_ROWS        25
+#define VGA_ROWS        50
 #define VGA_COLOR_WHITE 0x0f   /* white on black (default) */
 #define SCROLLBACK_LINES 200
+#define VGA_MAX_SCAN_MASK 0xe0U
+#define VGA_SCANLINE_8    0x07U
 
 static int col = 0, row = 0;
 static u8  vga_color = VGA_COLOR_WHITE;
@@ -20,6 +22,20 @@ static u32 scroll_view = 0;
 static int live_saved = 0;
 
 static void vga_update_cursor(void);
+static void vga_enable_80x50(void);
+
+static void vga_enable_80x50(void)
+{
+    /*
+     * Switch from 80x25 (16-scanline font) to 80x50 (8-scanline font)
+     * by halving the maximum scan line height.
+     */
+    outb(0x3d4, 0x09);
+    u8 max_scan = inb(0x3d5);
+    /* Preserve upper control bits, set max scanline to 7 (8-scanline font). */
+    max_scan = (max_scan & VGA_MAX_SCAN_MASK) | VGA_SCANLINE_8;
+    outb(0x3d5, max_scan);
+}
 
 static void scrollback_push_line(const volatile unsigned short *line)
 {
@@ -107,6 +123,7 @@ void ck_early_console_init(void)
 {
     volatile unsigned short *vga = VGA_BASE;
     int i;
+    vga_enable_80x50();
 
     for (i = 0; i < VGA_COLS * VGA_ROWS; i++)
         vga[i] = ((unsigned short)VGA_COLOR_WHITE << 8) | ' ';

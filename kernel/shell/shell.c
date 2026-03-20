@@ -248,6 +248,7 @@ static void cmd_help(void)
     ck_puts("  cp <src> <dst>        copy a file\n");
     ck_puts("  mv <src> <dst>        move/rename a file or directory\n");
     ck_puts("  rm [-r] <path>        remove a file (or directory with -r)\n");
+    ck_puts("  tree [path]           show directory tree (default: cwd)\n");
     ck_puts("  mkdir <path>          create a directory\n");
     ck_puts("  rmdir <path>          remove an empty directory\n");
     ck_puts("  hexdump <path>        hex dump file contents\n");
@@ -812,6 +813,63 @@ static void cmd_hexdump(const char *path)
     if (offset == 0)
         ck_puts("(empty file)\n");
     vfs_close(fd);
+}
+
+static void tree_print(const char *path, int depth)
+{
+    if (depth > 16)
+        return;
+
+    struct vfs_node *node = vfs_lookup(path);
+    if (!node)
+        return;
+
+    for (int i = 0; i < depth; i++)
+        ck_puts("  ");
+
+    if (depth == 0 && path[0] == '/' && path[1] == '\0')
+        ck_puts("/\n");
+    else
+        ck_printk("%s%s\n", node->name, (node->type == VFS_DIR) ? "/" : "");
+
+    if (node->type != VFS_DIR)
+        return;
+
+    int fd = vfs_open(path, O_RDONLY);
+    if (fd < 0)
+        return;
+
+    char child_name[VFS_NAME_MAX];
+    for (u32 i = 0; vfs_readdir(fd, i, child_name) == 0; i++) {
+        char child_path[VFS_NAME_MAX];
+        size_t plen = strlen(path);
+        size_t nlen = strlen(child_name);
+        if (plen + 1 + nlen >= VFS_NAME_MAX)
+            continue;
+        memcpy(child_path, path, plen);
+        if (child_path[plen - 1] != '/')
+            child_path[plen++] = '/';
+        memcpy(child_path + plen, child_name, nlen + 1);
+        tree_print(child_path, depth + 1);
+    }
+
+    vfs_close(fd);
+}
+
+static void cmd_tree(const char *path)
+{
+    char resolved[VFS_NAME_MAX];
+    if (path_resolve_or_error("tree", path, resolved) < 0)
+        return;
+
+    struct vfs_node *node = vfs_lookup(resolved);
+    if (!node) {
+        ck_printk("tree: %s: No such file or directory\n",
+                  (path && *path) ? path : resolved);
+        return;
+    }
+
+    tree_print(resolved, 0);
 }
 
 static void cmd_cd(const char *path)
@@ -1555,6 +1613,7 @@ static void shell_exec(char *line)
     else if (strcmp(line, "cp")        == 0) cmd_cp(args);
     else if (strcmp(line, "mv")        == 0) cmd_mv(args);
     else if (strcmp(line, "rm")        == 0) cmd_rm(args);
+    else if (strcmp(line, "tree")      == 0) cmd_tree(args);
     else if (strcmp(line, "mkdir")     == 0) cmd_mkdir(args);
     else if (strcmp(line, "rmdir")     == 0) cmd_rmdir(args);
     else if (strcmp(line, "hexdump")   == 0) cmd_hexdump(args);

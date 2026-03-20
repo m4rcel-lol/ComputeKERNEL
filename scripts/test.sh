@@ -100,8 +100,23 @@ if ! grep -Eq 'nic_device_count' kernel/shell/shell.c; then
     exit 1
 fi
 
-if ! grep -Eq 'TCP/IP stack not available in current kernel build' kernel/shell/shell.c; then
-    echo "[test] expected ssh command to report in-kernel TCP/IP stack status"
+if ! grep -Eq 'kernel/net/sshd.c' Makefile; then
+    echo "[test] expected SSH daemon scaffold module to be compiled in kernel build"
+    exit 1
+fi
+
+if ! grep -Eq 'sshd_init\(\)' kernel/init/main.c; then
+    echo "[test] expected kernel boot path to initialize SSH daemon scaffold"
+    exit 1
+fi
+
+if ! grep -Eq 'sshd_is_available' kernel/shell/shell.c; then
+    echo "[test] expected ssh command to query in-kernel SSH daemon scaffold availability"
+    exit 1
+fi
+
+if ! grep -Eq 'ssh daemon scaffold available' kernel/shell/shell.c; then
+    echo "[test] expected ssh command to report in-kernel SSH daemon scaffold status"
     exit 1
 fi
 

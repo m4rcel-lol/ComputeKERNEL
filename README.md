@@ -977,9 +977,9 @@ python3 tools/mkfs_image.py --rootfs rootfs/ --out out/initrd.img --size-mb 512
 - done: two physical machines pass boot matrix
 
 ### Advanced subsystem checklist (not yet implemented)
-- [ ] TCP/IP network stack                         - In-kernel TCP/IP (lwIP or custom)
+- [ ] TCP/IP network stack                         - In-kernel TCP/IP (lwIP or custom; foundation parsing/status wired)
 - [x] Network device driver model                  - NIC driver framework
-- [ ] SSH daemon                                   - In-kernel SSH service (research-only; high-risk attack surface)
+- [ ] SSH daemon                                   - In-kernel SSH service (research-only; high-risk attack surface; scaffold status wiring only)
 - [ ] SMP (multi-core) support                     - Per-CPU scheduler, IPI, spinlocks
 - [ ] ACPI power management                        - Full ACPI AML interpreter
 - [ ] USB stack                                    - xHCI host controller + USB drivers

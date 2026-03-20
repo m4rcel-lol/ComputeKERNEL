@@ -5,6 +5,7 @@
 #include <ck/string.h>
 #include <ck/net.h>
 #include <ck/nic.h>
+#include <ck/ssh.h>
 
 /* ── Early console (VGA text + serial) ─────────────────────────────── */
 void ck_early_console_init(void);

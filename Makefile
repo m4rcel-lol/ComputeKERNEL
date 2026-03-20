@@ -27,6 +27,7 @@ SRCS_C  := \
     kernel/arch/x86_64/pic.c \
     kernel/arch/x86_64/pit.c \
     kernel/arch/x86_64/keyboard.c \
+    kernel/arch/x86_64/mouse.c \
     kernel/arch/x86_64/cpu.c \
     kernel/mm/pmm.c \
     kernel/mm/heap.c \
@@ -117,4 +118,3 @@ rust-check:
 
 size-report:
 	@du -h $(OUT) 2>/dev/null || echo "out/ does not exist yet"
-

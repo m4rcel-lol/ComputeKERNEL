@@ -9,12 +9,76 @@
 #define VGA_COLS        80
 #define VGA_ROWS        25
 #define VGA_COLOR_WHITE 0x0f   /* white on black (default) */
+#define SCROLLBACK_LINES 200
 
 static int col = 0, row = 0;
 static u8  vga_color = VGA_COLOR_WHITE;
+static unsigned short scrollback[SCROLLBACK_LINES][VGA_COLS];
+static unsigned short live_screen[VGA_ROWS][VGA_COLS];
+static u32 scrollback_used = 0;
+static u32 scroll_view = 0;
+static int live_saved = 0;
+
+static void vga_update_cursor(void);
+
+static void scrollback_push_line(const volatile unsigned short *line)
+{
+    if (scrollback_used < SCROLLBACK_LINES) {
+        for (int c = 0; c < VGA_COLS; c++)
+            scrollback[scrollback_used][c] = line[c];
+        scrollback_used++;
+        return;
+    }
+    for (u32 r = 1; r < SCROLLBACK_LINES; r++)
+        for (int c = 0; c < VGA_COLS; c++)
+            scrollback[r - 1][c] = scrollback[r][c];
+    for (int c = 0; c < VGA_COLS; c++)
+        scrollback[SCROLLBACK_LINES - 1][c] = line[c];
+}
+
+static void render_scrollback_view(void)
+{
+    volatile unsigned short *vga = VGA_BASE;
+    if (scroll_view == 0)
+        return;
+
+    u32 first = (scrollback_used > scroll_view) ? (scrollback_used - scroll_view) : 0;
+    for (int r = 0; r < VGA_ROWS; r++) {
+        u32 src = first + (u32)r;
+        for (int c = 0; c < VGA_COLS; c++) {
+            if (src < scrollback_used)
+                vga[r * VGA_COLS + c] = scrollback[src][c];
+            else
+                vga[r * VGA_COLS + c] = ((unsigned short)VGA_COLOR_WHITE << 8) | ' ';
+        }
+    }
+    vga_update_cursor();
+}
+
+static void save_live_screen(void)
+{
+    volatile unsigned short *vga = VGA_BASE;
+    for (int r = 0; r < VGA_ROWS; r++)
+        for (int c = 0; c < VGA_COLS; c++)
+            live_screen[r][c] = vga[r * VGA_COLS + c];
+    live_saved = 1;
+}
+
+static void restore_live_screen(void)
+{
+    if (!live_saved)
+        return;
+    volatile unsigned short *vga = VGA_BASE;
+    for (int r = 0; r < VGA_ROWS; r++)
+        for (int c = 0; c < VGA_COLS; c++)
+            vga[r * VGA_COLS + c] = live_screen[r][c];
+    live_saved = 0;
+}
 
 static void vga_update_cursor(void)
 {
+    if (scroll_view > 0)
+        return;
     u16 pos = (u16)(row * VGA_COLS + col);
     outb(0x3d4, 0x0e);
     outb(0x3d5, (u8)(pos >> 8));
@@ -27,6 +91,7 @@ static void vga_scroll(void)
     volatile unsigned short *vga = VGA_BASE;
     int r, c;
 
+    scrollback_push_line(vga);
     for (r = 0; r < VGA_ROWS - 1; r++)
         for (c = 0; c < VGA_COLS; c++)
             vga[r * VGA_COLS + c] = vga[(r + 1) * VGA_COLS + c];
@@ -48,6 +113,9 @@ void ck_early_console_init(void)
     col = 0;
     row = 0;
     vga_color = VGA_COLOR_WHITE;
+    scrollback_used = 0;
+    scroll_view = 0;
+    live_saved = 0;
     vga_update_cursor();
 }
 
@@ -68,6 +136,11 @@ void ck_reset_color(void)
 
 void ck_putchar(char c)
 {
+    if (scroll_view > 0) {
+        scroll_view = 0;
+        restore_live_screen();
+    }
+
     volatile unsigned short *vga = VGA_BASE;
     unsigned short attr = (unsigned short)vga_color << 8;
 
@@ -234,6 +307,45 @@ void ck_printk(const char *fmt, ...)
     }
 done:
     va_end(ap);
+}
+
+void ck_console_scroll_up(u32 lines)
+{
+    if (lines == 0 || scrollback_used == 0)
+        return;
+    if (scroll_view == 0)
+        save_live_screen();
+    u32 max_view = scrollback_used;
+    if (scroll_view + lines > max_view)
+        scroll_view = max_view;
+    else
+        scroll_view += lines;
+    render_scrollback_view();
+}
+
+void ck_console_scroll_down(u32 lines)
+{
+    if (lines == 0 || scroll_view == 0)
+        return;
+    if (lines >= scroll_view)
+        scroll_view = 0;
+    else
+        scroll_view -= lines;
+    if (scroll_view > 0)
+        render_scrollback_view();
+    else {
+        restore_live_screen();
+        vga_update_cursor();
+    }
+}
+
+void ck_console_scroll_reset(void)
+{
+    if (scroll_view == 0)
+        return;
+    scroll_view = 0;
+    restore_live_screen();
+    vga_update_cursor();
 }
 
 /* ── Panic ──────────────────────────────────────────────────────────── */

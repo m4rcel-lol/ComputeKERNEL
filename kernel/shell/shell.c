@@ -14,6 +14,7 @@
 #include <ck/sched.h>
 #include <ck/mm.h>
 #include <ck/keyboard.h>
+#include <ck/mouse.h>
 
 /* Provided by pit.c / keyboard.c */
 extern u64  pit_get_ticks(void);
@@ -33,6 +34,8 @@ extern u64  pmm_free_pages(void);
 #define KEY_DOWN  0x11
 #define KEY_LEFT  0x12
 #define KEY_RIGHT 0x13
+#define KEY_PGUP  0x14
+#define KEY_PGDN  0x15
 #define KEY_CTRL_C 0x03
 #define KEY_CTRL_X 0x18
 #define KEY_CTRL_V 0x16
@@ -49,6 +52,7 @@ extern u64  pmm_free_pages(void);
 /* ── Command-history ring buffer ─────────────────────────────────────── */
 #define SHELL_HIST_MAX  16
 #define SHELL_HIST_LEN  SHELL_LINE_MAX
+#define SHELL_SCROLL_TO_TOP_LINES 1000U
 
 static char shell_hist[SHELL_HIST_MAX][SHELL_HIST_LEN];
 static int  shell_hist_count = 0;
@@ -159,10 +163,16 @@ static void cmd_help(void)
     ck_puts("  setup-alpine          run interactive installer-style setup\n");
     ck_puts("  arch-install          run interactive installer-style setup\n");
     ck_puts("  sudo <command>        execute command as root (live environment)\n");
+    ck_puts("  netinfo               show boot-time network status\n");
+    ck_puts("  ssh                   show current SSH support status\n");
+    ck_puts("  mouse                 show PS/2 mouse status and position\n");
+    ck_puts("  scroll [up|down|top|bottom]  navigate shell scrollback buffer (default: up)\n");
+    ck_puts("  credits               show ComputeKERNEL credits\n");
     ck_puts("  kblayout              configure keyboard layout interactively\n");
     ck_puts("  layout                alias for kblayout\n");
     ck_puts("  kblayout list         list available keyboard layouts\n");
     ck_puts("  kblayout set <l> [s]  set layout code and optional sublayout\n");
+    ck_puts("  PgUp/PgDn             scroll shell output history\n");
 }
 
 static void cmd_clear(void)
@@ -980,6 +990,63 @@ static void cmd_echo(const char *rest)
         ck_putchar('\n');
 }
 
+static void cmd_credits(void)
+{
+    ck_puts("ComputeKERNEL credits:\n");
+    ck_puts("  - Marcel R. (m4rcel-lol on GitHub) — creator and project owner\n");
+    ck_puts("  - OpenAI Coding Agent — implementation assistance\n");
+}
+
+static void cmd_mouse(void)
+{
+    int x = 0, y = 0;
+    u8 buttons = 0;
+    if (!mouse_is_available()) {
+        ck_puts("mouse: PS/2 mouse not available\n");
+        return;
+    }
+    mouse_get_position(&x, &y, &buttons);
+    ck_printk("mouse: enabled  pos=(%d,%d)  buttons=0x%x\n", x, y, (unsigned int)buttons);
+}
+
+static void cmd_netinfo(void)
+{
+    u32 packet_size = ck_boot_network_packet_size();
+    if (!ck_network_available()) {
+        ck_puts("netinfo: network stack not yet implemented; no boot-time packet available\n");
+        return;
+    }
+    ck_printk("netinfo: bootloader provided network packet (%u bytes)\n", packet_size);
+    ck_puts("netinfo: full NIC/IP/TCP support is not implemented yet\n");
+}
+
+static void cmd_ssh(void)
+{
+    ck_puts("ssh: OpenSSH/custom SSH server is not available in this build\n");
+    ck_puts("ssh: required dependencies (network stack + TCP/IP + crypto) are not implemented yet\n");
+}
+
+static void cmd_scroll(const char *args)
+{
+    if (!args || !*args || strcmp(args, "up") == 0) {
+        ck_console_scroll_up(10);
+        return;
+    }
+    if (strcmp(args, "down") == 0) {
+        ck_console_scroll_down(10);
+        return;
+    }
+    if (strcmp(args, "top") == 0) {
+        ck_console_scroll_up(SHELL_SCROLL_TO_TOP_LINES);
+        return;
+    }
+    if (strcmp(args, "reset") == 0 || strcmp(args, "bottom") == 0) {
+        ck_console_scroll_reset();
+        return;
+    }
+    ck_puts("scroll: usage: scroll [up|down|top|bottom]\n");
+}
+
 /* ── Command dispatcher ──────────────────────────────────────────────── */
 
 static void shell_exec(char *line)
@@ -1036,6 +1103,11 @@ static void shell_exec(char *line)
     else if (strcmp(line, "setup-alpine") == 0) cmd_installer_style();
     else if (strcmp(line, "arch-install") == 0) cmd_installer_style();
     else if (strcmp(line, "sudo")      == 0) cmd_sudo(args);
+    else if (strcmp(line, "netinfo")   == 0) cmd_netinfo();
+    else if (strcmp(line, "ssh")       == 0) cmd_ssh();
+    else if (strcmp(line, "mouse")     == 0) cmd_mouse();
+    else if (strcmp(line, "scroll")    == 0) cmd_scroll(args);
+    else if (strcmp(line, "credits")   == 0) cmd_credits();
     else if (strcmp(line, "kblayout")  == 0) cmd_kblayout(args);
     else if (strcmp(line, "layout")    == 0) cmd_kblayout(args);
     else
@@ -1180,11 +1252,16 @@ void task_shell(void *arg)
                 shell_pos = (int)strlen(shell_line);
                 ck_puts(shell_line);
             }
+        } else if (c == KEY_PGUP) {
+            ck_console_scroll_up(1);
+        } else if (c == KEY_PGDN) {
+            ck_console_scroll_down(1);
         } else if ((unsigned char)c >= ASCII_SPACE && (unsigned char)c < ASCII_DEL) {
             if (shell_pos < SHELL_LINE_MAX - 1) {
                 /* Any printable character cancels history navigation */
                 if (shell_hist_nav != -1)
                     shell_hist_nav = -1;
+                ck_console_scroll_reset();
                 shell_line[shell_pos++] = (char)c;
                 ck_putchar(c);
             }

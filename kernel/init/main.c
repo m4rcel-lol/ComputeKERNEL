@@ -64,6 +64,29 @@ static void print_meminfo(struct mb2_info *info)
         struct mb2_tag_bootloader *bl = (struct mb2_tag_bootloader *)t;
         ck_printk("[boot] loader: %s\n", bl->string);
     }
+
+    t = mb2_find_tag(info, MB2_TAG_NETWORK);
+    if (t) {
+        if (t->size > sizeof(struct mb2_tag))
+            ck_printk("[net] boot network packet available (%u bytes)\n",
+                      t->size - (u32)sizeof(struct mb2_tag));
+        else
+            ck_puts("[net] boot network tag is malformed\n");
+    } else {
+        ck_puts("[net] no boot network packet provided by bootloader\n");
+    }
+}
+
+static u32 boot_network_packet_size = 0;
+
+u32 ck_boot_network_packet_size(void)
+{
+    return boot_network_packet_size;
+}
+
+int ck_network_available(void)
+{
+    return boot_network_packet_size > 0;
 }
 
 /* ── Kernel main ────────────────────────────────────────────────────── */
@@ -83,6 +106,11 @@ void kmain(unsigned int mb2_magic, unsigned int mb2_info_phys)
     }
 
     struct mb2_info *mb2 = (struct mb2_info *)(uintptr_t)mb2_info_phys;
+    struct mb2_tag *net_tag = mb2_find_tag(mb2, MB2_TAG_NETWORK);
+    if (net_tag && net_tag->size > sizeof(struct mb2_tag))
+        boot_network_packet_size = net_tag->size - (u32)sizeof(struct mb2_tag);
+    else
+        boot_network_packet_size = 0;
 
     /* 3. Architecture init (GDT, IDT, PIC, PIT – enables interrupts) */
     arch_init();

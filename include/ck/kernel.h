@@ -10,6 +10,9 @@ void ck_console_clear(void);
 void ck_putchar(char c);
 void ck_puts(const char *s);
 void ck_printk(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+void ck_console_scroll_up(u32 lines);
+void ck_console_scroll_down(u32 lines);
+void ck_console_scroll_reset(void);
 
 /* VGA foreground color constants (background is always black) */
 #define CK_COLOR_BLACK        0
@@ -31,6 +34,8 @@ void ck_printk(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 void ck_set_color(u8 fg_color);
 void ck_reset_color(void);
+u32 ck_boot_network_packet_size(void);
+int ck_network_available(void);
 
 /* Serial port (COM1) */
 void serial_init(void);
@@ -62,4 +67,3 @@ void kmain(unsigned int mb2_magic, unsigned int mb2_info_phys);
 void ck_panic(const char *msg) __attribute__((noreturn));
 
 #endif /* CK_KERNEL_H */
-

@@ -215,14 +215,28 @@ static int path_resolve_or_error(const char *cmd, const char *arg, char *out)
 
 static void cmd_help(void)
 {
-    ck_puts("cksh built-in commands:\n");
+    ck_set_color(CK_COLOR_LIGHT_CYAN);
+    ck_puts("+------------------ cksh built-in commands ------------------+\n");
+    ck_reset_color();
+
+    ck_set_color(CK_COLOR_YELLOW);
+    ck_puts("[ CORE ]\n");
+    ck_reset_color();
     ck_puts("  help                  show this help message\n");
     ck_puts("  clear                 clear the screen\n");
     ck_puts("  echo [text]           print text to the screen\n");
+
+    ck_set_color(CK_COLOR_YELLOW);
+    ck_puts("[ SYSTEM INFO ]\n");
+    ck_reset_color();
     ck_puts("  uname                 print kernel/OS information\n");
     ck_puts("  fastfetch             display system information\n");
     ck_puts("  free                  show free memory pages\n");
     ck_puts("  mem                   show detailed memory statistics\n");
+
+    ck_set_color(CK_COLOR_YELLOW);
+    ck_puts("[ FILES ]\n");
+    ck_reset_color();
     ck_puts("  ls [path]             list directory contents\n");
     ck_puts("  cat <path>            print file contents\n");
     ck_puts("  stat <path>           show file or directory metadata\n");
@@ -236,6 +250,10 @@ static void cmd_help(void)
     ck_puts("  hexdump <path>        hex dump file contents\n");
     ck_puts("  cd [path]             change working directory\n");
     ck_puts("  pwd                   print working directory\n");
+
+    ck_set_color(CK_COLOR_YELLOW);
+    ck_puts("[ TASKS + SYSTEM ]\n");
+    ck_reset_color();
     ck_puts("  history               show command history\n");
     ck_puts("  uptime                show system uptime\n");
     ck_puts("  whoami                print current username\n");
@@ -259,7 +277,12 @@ static void cmd_help(void)
     ck_puts("  layout                alias for kblayout\n");
     ck_puts("  kblayout list         list available keyboard layouts\n");
     ck_puts("  kblayout set <l> [s]  set layout code and optional sublayout\n");
+    ck_set_color(CK_COLOR_LIGHT_GRAY);
     ck_puts("  PgUp/PgDn             scroll shell output history\n");
+    ck_reset_color();
+    ck_set_color(CK_COLOR_LIGHT_CYAN);
+    ck_puts("+-------------------------------------------------------------+\n");
+    ck_reset_color();
 }
 
 static void cmd_clear(void)

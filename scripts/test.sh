@@ -80,6 +80,16 @@ if ! grep -Eq 'rm \[-r\] <path>' kernel/shell/shell.c; then
     exit 1
 fi
 
+if ! grep -Eq 'cksh built-in commands' kernel/shell/shell.c; then
+    echo "[test] expected structured help banner for shell commands"
+    exit 1
+fi
+
+if ! grep -Eq '\[ SYSTEM INFO \]' kernel/shell/shell.c; then
+    echo "[test] expected SYSTEM INFO section in shell help output"
+    exit 1
+fi
+
 if ! grep -Eq 'Terminal: VGA %ux%u' kernel/shell/shell.c; then
     echo "[test] expected terminal resolution output to use dynamic VGA dimensions"
     exit 1

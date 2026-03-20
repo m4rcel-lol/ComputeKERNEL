@@ -316,52 +316,33 @@ static void cmd_fastfetch(void)
 
     ck_puts("\n");
 
-    /* Line 1: art row 1 + user@hostname */
     ck_set_color(CK_COLOR_LIGHT_GREEN);
-    ck_puts("  ##    ##         ");
-    ck_set_color(CK_COLOR_LIGHT_RED);
-    ck_puts(SHELL_USER);
-    ck_set_color(CK_COLOR_YELLOW);
-    ck_puts("@");
-    ck_set_color(CK_COLOR_LIGHT_GREEN);
-    ck_puts(SHELL_HOSTNAME);
+    ck_puts("                  @@@@@@@@@@          @@@@@@@@@@@@\n");
+    ck_puts("                 @@@@@@@@@@@@       @@@@@@@@@@@@@@\n");
+    ck_puts("                 @@@@@@@@@@@@     @@@@@@@@@@@@@@@\n");
+    ck_puts("                 @@@@@@@@@@@@   @@@@@@@@@@@@@@@\n");
+    ck_puts("                 @@@@@@@@@@@@  @@@@@@@@@@@@@@=\n");
+    ck_puts("                 @@@@@@@@@@@ @@@@@@@@@@@@@@@\n");
+    ck_puts("                 @@@@@@@@@ #@@ @@@@@@@@@@@\n");
+    ck_puts("                 @@@@@@@  @@@      @@@@@%\n");
+    ck_puts("                 @@@     @@@@       .@@\n");
+    ck_puts("                 @@@     @@@@       .@@\n");
+    ck_puts("                 @@@@@@@  @@@      @@@@@@\n");
+    ck_puts("                 @@@@@@@@@ %@@ @@@@@@@@@@@\n");
+    ck_puts("                 @@@@@@@@@@@ @@@@@@@@@@@@@@@\n");
+    ck_puts("                 @@@@@@@@@@@@  @@@@@@@@@@@@@@=\n");
+    ck_puts("                 @@@@@@@@@@@@   @@@@@@@@@@@@@@@\n");
+    ck_puts("                 @@@@@@@@@@@@     @@@@@@@@@@@@@@@\n");
+    ck_puts("                 @@@@@@@@@@@@       @@@@@@@@@@@@@@\n");
+    ck_puts("                  @@@@@@@@@@          @@@@@@@@@@@@\n");
     ck_reset_color();
     ck_puts("\n");
-
-    /* Line 2: art row 2 + separator */
-    ck_set_color(CK_COLOR_LIGHT_GREEN);
-    ck_puts("  ##   ##          ");
-    ck_reset_color();
+    ck_puts(SHELL_USER "@" SHELL_HOSTNAME "\n");
     ck_puts("-----------------------------\n");
-
-    /* Line 3: art row 3 + OS */
-    ck_set_color(CK_COLOR_LIGHT_GREEN);
-    ck_puts("  ## ##            ");
-    ck_reset_color();
     ck_puts("OS:       ComputeKERNEL 1.0.0\n");
-
-    /* Line 4: art row 4 + Arch */
-    ck_set_color(CK_COLOR_LIGHT_GREEN);
-    ck_puts("  ####             ");
-    ck_reset_color();
     ck_puts("Arch:     x86_64\n");
-
-    /* Line 5: art row 5 + Kernel */
-    ck_set_color(CK_COLOR_LIGHT_GREEN);
-    ck_puts("  ## ##            ");
-    ck_reset_color();
     ck_puts("Kernel:   ComputeKERNEL v1.0.0\n");
-
-    /* Line 6: art row 6 + CPU */
-    ck_set_color(CK_COLOR_LIGHT_GREEN);
-    ck_puts("  ##   ##          ");
-    ck_reset_color();
     ck_puts("CPU:      x86_64\n");
-
-    /* Line 7: art row 7 + Shell */
-    ck_set_color(CK_COLOR_LIGHT_GREEN);
-    ck_puts("  ##    ##         ");
-    ck_reset_color();
     ck_puts("Shell:    cksh 1.0.0\n");
 
     /* Lines 8+ : no art, just info */

@@ -70,6 +70,46 @@ if ! grep -Eq '\bmouse\b' kernel/shell/shell.c; then
     exit 1
 fi
 
+if ! grep -Eq 'hostfwd=tcp::2222-:22' scripts/run-qemu.sh; then
+    echo "[test] expected QEMU launcher to configure SSH TCP port forwarding"
+    exit 1
+fi
+
+if ! grep -Eq 'hostfwd=tcp::2222-:22' scripts/run-kvm.sh; then
+    echo "[test] expected QEMU+KVM launcher to configure SSH TCP port forwarding"
+    exit 1
+fi
+
+if ! grep -Eq 'make kernel' .github/workflows/build-main-iso.yml; then
+    echo "[test] expected main ISO workflow to run full kernel build"
+    exit 1
+fi
+
+if ! grep -Eq 'make lint' .github/workflows/build-main-iso.yml; then
+    echo "[test] expected main ISO workflow to run lint checks"
+    exit 1
+fi
+
+if ! grep -Eq 'make test' .github/workflows/build-main-iso.yml; then
+    echo "[test] expected main ISO workflow to run test checks"
+    exit 1
+fi
+
+if ! grep -Eq 'make kernel' .github/workflows/build-vm-iso.yml; then
+    echo "[test] expected VM ISO workflow to run full kernel build"
+    exit 1
+fi
+
+if ! grep -Eq 'make lint' .github/workflows/build-vm-iso.yml; then
+    echo "[test] expected VM ISO workflow to run lint checks"
+    exit 1
+fi
+
+if ! grep -Eq 'make test' .github/workflows/build-vm-iso.yml; then
+    echo "[test] expected VM ISO workflow to run test checks"
+    exit 1
+fi
+
 if ! grep -Eq 'kernel/arch/x86_64/mouse.c' Makefile; then
     echo "[test] expected mouse driver to be compiled in kernel build"
     exit 1

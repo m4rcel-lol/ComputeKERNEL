@@ -1013,17 +1013,18 @@ static void cmd_netinfo(void)
 {
     u32 packet_size = ck_boot_network_packet_size();
     if (!ck_network_available()) {
-        ck_puts("netinfo: network stack not yet implemented; no boot-time packet available\n");
+        ck_puts("netinfo: no bootloader network packet available\n");
+        ck_puts("netinfo: QEMU user networking can be enabled via scripts/run-qemu.sh\n");
         return;
     }
     ck_printk("netinfo: bootloader provided network packet (%u bytes)\n", packet_size);
-    ck_puts("netinfo: full NIC/IP/TCP support is not implemented yet\n");
+    ck_puts("netinfo: packet visibility is available; full NIC/IP/TCP stack is pending\n");
 }
 
 static void cmd_ssh(void)
 {
-    ck_puts("ssh: OpenSSH/custom SSH server is not available in this build\n");
-    ck_puts("ssh: required dependencies (network stack + TCP/IP + crypto) are not implemented yet\n");
+    ck_puts("ssh: host-side TCP forward configured for QEMU on localhost:2222 -> guest:22\n");
+    ck_puts("ssh: in-kernel SSH server is not available yet (network/TCP/crypto stack pending)\n");
 }
 
 static void cmd_scroll(const char *args)

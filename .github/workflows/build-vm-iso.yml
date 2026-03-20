@@ -11,7 +11,26 @@ permissions:
   contents: read
 
 jobs:
+  validate-full-kernel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            gcc binutils grub-pc-bin grub-common xorriso mtools python3
+
+      - name: Run full kernel build and repository checks
+        run: |
+          make kernel
+          make lint
+          make test
+
   build-vm-iso:
+    needs: validate-full-kernel
     runs-on: ubuntu-latest
     strategy:
       matrix:

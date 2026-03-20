@@ -161,7 +161,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            xorriso isoinfo file binutils
+            xorriso genisoimage file binutils
 
       - name: Download universal ISO
         uses: actions/download-artifact@v4

@@ -275,6 +275,7 @@ static void cmd_help(void)
     ck_puts("  arch-install          legacy alias for setup\n");
     ck_puts("  sudo <command>        execute command as root (live environment)\n");
     ck_puts("  netinfo               show boot-time network status\n");
+    ck_puts("  nics                  list registered NIC devices and MAC addresses\n");
     ck_puts("  ssh [status|enable|disable]  show or set SSH scaffold status\n");
     ck_puts("  mouse                 show PS/2 mouse status and position\n");
     ck_puts("  scroll [up|down|top|bottom]  navigate shell scrollback buffer (default: up)\n");
@@ -1341,6 +1342,29 @@ static void cmd_netinfo(void)
     ck_printk("  nics    : %u registered via NIC framework\n", (unsigned int)nic_device_count());
 }
 
+static void cmd_nics(void)
+{
+    u32 count = nic_device_count();
+    ck_puts("nics: registered network interface cards\n");
+    if (count == 0) {
+        ck_puts("  (no NICs registered)\n");
+        return;
+    }
+
+    for (u32 i = 0; i < count; i++) {
+        const struct nic_device *dev = nic_get_device(i);
+        if (!dev) {
+            ck_printk("  [%u] <unavailable>\n", (unsigned int)i);
+            continue;
+        }
+        ck_printk("  [%u] %s  mac=%02x:%02x:%02x:%02x:%02x:%02x\n",
+                  (unsigned int)i, dev->name,
+                  (unsigned int)dev->mac_addr[0], (unsigned int)dev->mac_addr[1],
+                  (unsigned int)dev->mac_addr[2], (unsigned int)dev->mac_addr[3],
+                  (unsigned int)dev->mac_addr[4], (unsigned int)dev->mac_addr[5]);
+    }
+}
+
 static void cmd_ssh(void)
 {
     ck_puts("ssh: secure shell access overview\n");
@@ -1721,6 +1745,7 @@ static void shell_exec(char *line)
     }
     else if (strcmp(line, "sudo")      == 0) cmd_sudo(args);
     else if (strcmp(line, "netinfo")   == 0) cmd_netinfo();
+    else if (strcmp(line, "nics")      == 0) cmd_nics();
     else if (strcmp(line, "ssh")       == 0) cmd_ssh_control(args);
     else if (strcmp(line, "motd")      == 0) cmd_motd();
     else if (strcmp(line, "mouse")     == 0) cmd_mouse();

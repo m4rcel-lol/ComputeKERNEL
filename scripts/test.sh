@@ -145,6 +145,21 @@ if ! grep -Eq 'ssh \[status\|enable\|disable\]' kernel/shell/shell.c; then
     exit 1
 fi
 
+if ! grep -Eq 'cmd_nics' kernel/shell/shell.c; then
+    echo "[test] expected shell to implement dedicated nics command"
+    exit 1
+fi
+
+if ! grep -Eq 'nics: registered network interface cards' kernel/shell/shell.c; then
+    echo "[test] expected nics command to print NIC device listing header"
+    exit 1
+fi
+
+if ! grep -Eq 'mac=%02x:%02x:%02x:%02x:%02x:%02x' kernel/shell/shell.c; then
+    echo "[test] expected nics command to display NIC MAC addresses"
+    exit 1
+fi
+
 if ! grep -Eq 'TCP/IP network stack[[:space:]]+- In-kernel TCP/IP \(lwIP; foundation parsing/status wired\)' README.md; then
     echo "[test] expected roadmap TCP/IP implementation choice to be lwIP"
     exit 1

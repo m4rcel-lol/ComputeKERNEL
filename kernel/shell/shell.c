@@ -54,6 +54,7 @@ extern u64  pmm_free_pages(void);
 #define SHELL_HIST_LEN  SHELL_LINE_MAX
 #define SHELL_SCROLL_TO_TOP_LINES 1000U
 #define PATH_SEG_MAX 128
+#define SHELL_FS_RECURSE_MAX 32
 
 static char shell_hist[SHELL_HIST_MAX][SHELL_HIST_LEN];
 static int  shell_hist_count = 0;
@@ -818,7 +819,7 @@ static void cmd_hexdump(const char *path)
 
 static void tree_print(const char *path, int depth)
 {
-    if (depth > 16)
+    if (depth > SHELL_FS_RECURSE_MAX)
         return;
 
     struct vfs_node *node = vfs_lookup(path);
@@ -876,7 +877,7 @@ static void cmd_tree(const char *path)
 
 static u64 du_size(const char *path, int depth)
 {
-    if (depth > 32)
+    if (depth > SHELL_FS_RECURSE_MAX)
         return 0;
 
     struct vfs_node *node = vfs_lookup(path);
@@ -888,7 +889,7 @@ static u64 du_size(const char *path, int depth)
     u64 total = 0;
     int fd = vfs_open(path, O_RDONLY);
     if (fd < 0)
-        return node->size;
+        return 0;
 
     char child_name[VFS_NAME_MAX];
     char child_path[VFS_NAME_MAX];

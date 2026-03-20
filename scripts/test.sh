@@ -65,6 +65,11 @@ if ! grep -Eq '\bnetinfo\b' kernel/shell/shell.c; then
     exit 1
 fi
 
+if ! grep -Eq 'TCP/IP stack not available in current kernel build' kernel/shell/shell.c; then
+    echo "[test] expected ssh command to report in-kernel TCP/IP stack status"
+    exit 1
+fi
+
 if ! grep -Eq 'setup-guide' kernel/shell/shell.c; then
     echo "[test] expected setup-guide command support in shell"
     exit 1
@@ -72,6 +77,61 @@ fi
 
 if ! grep -Eq 'rm \[-r\] <path>' kernel/shell/shell.c; then
     echo "[test] expected recursive rm help usage in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\btree\b' kernel/shell/shell.c; then
+    echo "[test] expected tree command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\bdu\b' kernel/shell/shell.c; then
+    echo "[test] expected du command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq 'cksh built-in commands' kernel/shell/shell.c; then
+    echo "[test] expected structured help banner for shell commands"
+    exit 1
+fi
+
+if ! grep -Eq '\[ SYSTEM INFO \]' kernel/shell/shell.c; then
+    echo "[test] expected SYSTEM INFO section in shell help output"
+    exit 1
+fi
+
+if ! grep -Eq '\bmotd\b' kernel/shell/shell.c; then
+    echo "[test] expected motd command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\bpalette\b' kernel/shell/shell.c; then
+    echo "[test] expected palette command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\btips\b' kernel/shell/shell.c; then
+    echo "[test] expected tips command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\bbanner\b' kernel/shell/shell.c; then
+    echo "[test] expected banner command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\btasks\b' kernel/shell/shell.c; then
+    echo "[test] expected tasks command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\bsyscheck\b' kernel/shell/shell.c; then
+    echo "[test] expected syscheck command support in shell"
+    exit 1
+fi
+
+if ! grep -Eq '\bneofetch\b' kernel/shell/shell.c; then
+    echo "[test] expected neofetch alias support in shell"
     exit 1
 fi
 

@@ -54,6 +54,7 @@ extern u64  pmm_free_pages(void);
 #define SHELL_HIST_LEN  SHELL_LINE_MAX
 #define SHELL_SCROLL_TO_TOP_LINES 1000U
 #define PATH_SEG_MAX 128
+#define SHELL_FS_RECURSE_MAX 32
 
 static char shell_hist[SHELL_HIST_MAX][SHELL_HIST_LEN];
 static int  shell_hist_count = 0;
@@ -70,6 +71,7 @@ static char shell_clipboard[SHELL_LINE_MAX];
 
 static void shell_exec(char *line);
 static void cmd_installer_style(void);
+static void shell_print_banner(void);
 
 static int parse_u32_arg(const char *s, u32 *out)
 {
@@ -215,14 +217,30 @@ static int path_resolve_or_error(const char *cmd, const char *arg, char *out)
 
 static void cmd_help(void)
 {
-    ck_puts("cksh built-in commands:\n");
+    ck_set_color(CK_COLOR_LIGHT_CYAN);
+    ck_puts("+------------------ cksh built-in commands ------------------+\n");
+    ck_reset_color();
+
+    ck_set_color(CK_COLOR_YELLOW);
+    ck_puts("[ CORE ]\n");
+    ck_reset_color();
     ck_puts("  help                  show this help message\n");
     ck_puts("  clear                 clear the screen\n");
     ck_puts("  echo [text]           print text to the screen\n");
+
+    ck_set_color(CK_COLOR_YELLOW);
+    ck_puts("[ SYSTEM INFO ]\n");
+    ck_reset_color();
     ck_puts("  uname                 print kernel/OS information\n");
     ck_puts("  fastfetch             display system information\n");
+    ck_puts("  neofetch              alias for fastfetch\n");
     ck_puts("  free                  show free memory pages\n");
     ck_puts("  mem                   show detailed memory statistics\n");
+    ck_puts("  motd                  show session status summary\n");
+
+    ck_set_color(CK_COLOR_YELLOW);
+    ck_puts("[ FILES ]\n");
+    ck_reset_color();
     ck_puts("  ls [path]             list directory contents\n");
     ck_puts("  cat <path>            print file contents\n");
     ck_puts("  stat <path>           show file or directory metadata\n");
@@ -231,16 +249,23 @@ static void cmd_help(void)
     ck_puts("  cp <src> <dst>        copy a file\n");
     ck_puts("  mv <src> <dst>        move/rename a file or directory\n");
     ck_puts("  rm [-r] <path>        remove a file (or directory with -r)\n");
+    ck_puts("  tree [path]           show directory tree (default: cwd)\n");
+    ck_puts("  du [path]             show recursive disk usage (bytes)\n");
     ck_puts("  mkdir <path>          create a directory\n");
     ck_puts("  rmdir <path>          remove an empty directory\n");
     ck_puts("  hexdump <path>        hex dump file contents\n");
     ck_puts("  cd [path]             change working directory\n");
     ck_puts("  pwd                   print working directory\n");
+
+    ck_set_color(CK_COLOR_YELLOW);
+    ck_puts("[ TASKS + SYSTEM ]\n");
+    ck_reset_color();
     ck_puts("  history               show command history\n");
     ck_puts("  uptime                show system uptime\n");
     ck_puts("  whoami                print current username\n");
     ck_puts("  hostname              print system hostname\n");
     ck_puts("  ps                    list running tasks\n");
+    ck_puts("  tasks                 show task state summary\n");
     ck_puts("  sleep <n>             sleep for n seconds\n");
     ck_puts("  reboot                reboot the system\n");
     ck_puts("  halt                  halt the system\n");
@@ -255,11 +280,18 @@ static void cmd_help(void)
     ck_puts("  scroll [up|down|top|bottom]  navigate shell scrollback buffer (default: up)\n");
     ck_puts("  resolution [WxH|W H] set or show display resolution (default: 80x25)\n");
     ck_puts("  credits               show ComputeKERNEL credits\n");
+    ck_puts("  banner                show startup banner again\n");
+    ck_puts("  palette               show terminal color palette\n");
+    ck_puts("  tips                  show shell productivity tips\n");
+    ck_puts("  syscheck              run quick kernel sanity checks\n");
     ck_puts("  kblayout              configure keyboard layout interactively\n");
     ck_puts("  layout                alias for kblayout\n");
     ck_puts("  kblayout list         list available keyboard layouts\n");
     ck_puts("  kblayout set <l> [s]  set layout code and optional sublayout\n");
     ck_puts("  PgUp/PgDn             scroll shell output history\n");
+    ck_set_color(CK_COLOR_LIGHT_CYAN);
+    ck_puts("+-------------------------------------------------------------+\n");
+    ck_reset_color();
 }
 
 static void cmd_clear(void)
@@ -785,6 +817,115 @@ static void cmd_hexdump(const char *path)
     vfs_close(fd);
 }
 
+static void tree_print(const char *path, int depth)
+{
+    if (depth > SHELL_FS_RECURSE_MAX)
+        return;
+
+    struct vfs_node *node = vfs_lookup(path);
+    if (!node)
+        return;
+
+    for (int i = 0; i < depth; i++)
+        ck_puts("  ");
+
+    int is_root = (depth == 0 && path[0] == '/' && path[1] == '\0');
+    if (is_root)
+        ck_puts("/\n");
+    else
+        ck_printk("%s%s\n", node->name, (node->type == VFS_DIR) ? "/" : "");
+
+    if (node->type != VFS_DIR)
+        return;
+
+    int fd = vfs_open(path, O_RDONLY);
+    if (fd < 0)
+        return;
+
+    char child_name[VFS_NAME_MAX];
+    char child_path[VFS_NAME_MAX];
+    for (u32 i = 0; vfs_readdir(fd, i, child_name) == 0; i++) {
+        size_t plen = strlen(path);
+        size_t nlen = strlen(child_name);
+        if (plen + 1 + nlen >= VFS_NAME_MAX)
+            continue;
+        memcpy(child_path, path, plen);
+        if (child_path[plen - 1] != '/')
+            child_path[plen++] = '/';
+        memcpy(child_path + plen, child_name, nlen + 1);
+        tree_print(child_path, depth + 1);
+    }
+
+    vfs_close(fd);
+}
+
+static void cmd_tree(const char *path)
+{
+    char resolved[VFS_NAME_MAX];
+    if (path_resolve_or_error("tree", path, resolved) < 0)
+        return;
+
+    struct vfs_node *node = vfs_lookup(resolved);
+    if (!node) {
+        ck_printk("tree: %s: No such file or directory\n",
+                  (path && *path) ? path : resolved);
+        return;
+    }
+
+    tree_print(resolved, 0);
+}
+
+static u64 du_size(const char *path, int depth)
+{
+    if (depth > SHELL_FS_RECURSE_MAX)
+        return 0;
+
+    struct vfs_node *node = vfs_lookup(path);
+    if (!node)
+        return 0;
+    if (node->type != VFS_DIR)
+        return node->size;
+
+    u64 total = 0;
+    int fd = vfs_open(path, O_RDONLY);
+    if (fd < 0)
+        return 0;
+
+    char child_name[VFS_NAME_MAX];
+    char child_path[VFS_NAME_MAX];
+    for (u32 i = 0; vfs_readdir(fd, i, child_name) == 0; i++) {
+        size_t plen = strlen(path);
+        size_t nlen = strlen(child_name);
+        if (plen + 1 + nlen >= VFS_NAME_MAX)
+            continue;
+        memcpy(child_path, path, plen);
+        if (child_path[plen - 1] != '/')
+            child_path[plen++] = '/';
+        memcpy(child_path + plen, child_name, nlen + 1);
+        total += du_size(child_path, depth + 1);
+    }
+
+    vfs_close(fd);
+    return total;
+}
+
+static void cmd_du(const char *path)
+{
+    char resolved[VFS_NAME_MAX];
+    if (path_resolve_or_error("du", path, resolved) < 0)
+        return;
+
+    struct vfs_node *node = vfs_lookup(resolved);
+    if (!node) {
+        ck_printk("du: %s: No such file or directory\n",
+                  (path && *path) ? path : resolved);
+        return;
+    }
+
+    u64 size = du_size(resolved, 0);
+    ck_printk("%llu\t%s\n", size, resolved);
+}
+
 static void cmd_cd(const char *path)
 {
     char resolved[VFS_NAME_MAX];
@@ -1212,8 +1353,188 @@ static void cmd_netinfo(void)
 
 static void cmd_ssh(void)
 {
-    ck_puts("ssh: host-side TCP forward configured for QEMU on localhost:2222 -> guest:22\n");
-    ck_puts("ssh: in-kernel SSH server is not available yet\n");
+    ck_puts("ssh: secure shell access overview\n");
+    ck_puts("  host-side : TCP localhost:2222 -> guest:22 (QEMU user networking)\n");
+    ck_puts("  in-kernel : TCP/IP stack not available in current kernel build\n");
+    ck_puts("  connect   : use host command ssh -p 2222 root@localhost\n");
+}
+
+static void cmd_motd(void)
+{
+    u64 ticks = pit_get_ticks();
+    u64 uptime_s = ticks / PIT_HZ;
+    u64 uptime_m = uptime_s / 60;
+    u64 uptime_h = uptime_m / 60;
+    u64 free_pages  = pmm_free_pages();
+    u64 total_pages = pmm_total_pages();
+    u64 used_pages  = total_pages - free_pages;
+    u32 display_w = 0, display_h = 0;
+    ck_display_get_resolution(&display_w, &display_h);
+
+    ck_set_color(CK_COLOR_LIGHT_CYAN);
+    ck_puts("+-------------------- session status --------------------+\n");
+    ck_reset_color();
+    ck_printk(" user      : %s\n", SHELL_USER);
+    ck_printk(" host      : %s\n", SHELL_HOSTNAME);
+    ck_printk(" cwd       : %s\n", shell_cwd);
+    ck_printk(" terminal  : VGA %ux%u\n", (unsigned int)display_w, (unsigned int)display_h);
+    ck_printk(" uptime    : %llu:%02llu:%02llu\n", uptime_h, uptime_m % 60, uptime_s % 60);
+    ck_printk(" memory    : %llu / %llu KiB used (%llu KiB free)\n",
+              used_pages * 4ULL, total_pages * 4ULL, free_pages * 4ULL);
+    if (ck_network_available())
+        ck_printk(" network   : boot packet available (%u bytes)\n",
+                  (unsigned int)ck_boot_network_packet_size());
+    else
+        ck_puts(" network   : boot packet not available\n");
+    ck_set_color(CK_COLOR_LIGHT_CYAN);
+    ck_puts("+--------------------------------------------------------+\n");
+    ck_reset_color();
+}
+
+static void cmd_palette(void)
+{
+    struct {
+        u8 color;
+        const char *name;
+    } swatches[] = {
+        { CK_COLOR_BLACK, "black" },
+        { CK_COLOR_BLUE, "blue" },
+        { CK_COLOR_GREEN, "green" },
+        { CK_COLOR_CYAN, "cyan" },
+        { CK_COLOR_RED, "red" },
+        { CK_COLOR_MAGENTA, "magenta" },
+        { CK_COLOR_BROWN, "brown" },
+        { CK_COLOR_LIGHT_GRAY, "light-gray" },
+        { CK_COLOR_DARK_GRAY, "dark-gray" },
+        { CK_COLOR_LIGHT_BLUE, "light-blue" },
+        { CK_COLOR_LIGHT_GREEN, "light-green" },
+        { CK_COLOR_LIGHT_CYAN, "light-cyan" },
+        { CK_COLOR_LIGHT_RED, "light-red" },
+        { CK_COLOR_PINK, "pink" },
+        { CK_COLOR_YELLOW, "yellow" },
+        { CK_COLOR_WHITE, "white" },
+    };
+    const u32 swatches_count = (u32)(sizeof(swatches) / sizeof(swatches[0]));
+    ck_puts("palette: VGA text colors\n");
+    for (u32 i = 0; i < swatches_count; i++) {
+        ck_set_color(swatches[i].color);
+        ck_printk("  [%2u] %s", (unsigned int)swatches[i].color, swatches[i].name);
+        ck_reset_color();
+        ck_puts("\n");
+    }
+}
+
+static void cmd_tips(void)
+{
+    ck_puts("cksh quick tips:\n");
+    ck_puts("  - Use Up/Down arrows for command history\n");
+    ck_puts("  - Use Ctrl+X to cut the current line, Ctrl+V to paste\n");
+    ck_puts("  - Use PgUp/PgDn or 'scroll' to navigate shell output\n");
+    ck_puts("  - Use 'motd' for a compact status summary\n");
+    ck_puts("  - Use 'fastfetch' for full system overview\n");
+    ck_puts("  - Use 'kblayout' to switch keyboard layout interactively\n");
+}
+
+static void cmd_tasks(void)
+{
+    int n = sched_num_tasks();
+    u32 running = 0, ready = 0, blocked = 0, dead = 0, unknown = 0;
+    u64 total_ticks = 0;
+    const struct task *current = sched_current();
+
+    for (int i = 0; i < n; i++) {
+        struct task *t = sched_get_task(i);
+        if (!t)
+            continue;
+        total_ticks += t->ticks;
+        switch (t->state) {
+        case TASK_RUNNING: running++; break;
+        case TASK_READY:   ready++; break;
+        case TASK_BLOCKED: blocked++; break;
+        case TASK_DEAD:    dead++; break;
+        default:           unknown++; break;
+        }
+    }
+
+    ck_set_color(CK_COLOR_LIGHT_CYAN);
+    ck_puts("+--------------------- task summary ---------------------+\n");
+    ck_reset_color();
+    ck_printk(" total tasks : %d\n", n);
+    ck_printk(" running     : %u\n", (unsigned int)running);
+    ck_printk(" ready       : %u\n", (unsigned int)ready);
+    ck_printk(" blocked     : %u\n", (unsigned int)blocked);
+    ck_printk(" dead        : %u\n", (unsigned int)dead);
+    if (unknown)
+        ck_printk(" unknown     : %u\n", (unsigned int)unknown);
+    ck_printk(" cpu ticks   : %llu (sum of all task ticks)\n", total_ticks);
+    if (current)
+        ck_printk(" current     : tid=%d name=%s\n", current->tid, current->name);
+    ck_set_color(CK_COLOR_LIGHT_CYAN);
+    ck_puts("+--------------------------------------------------------+\n");
+    ck_reset_color();
+}
+
+static void cmd_syscheck(void)
+{
+    u32 display_w = 0, display_h = 0;
+    ck_display_get_resolution(&display_w, &display_h);
+    u64 free_pages  = pmm_free_pages();
+    u64 total_pages = pmm_total_pages();
+    u64 ticks = pit_get_ticks();
+
+    int ok = 1;
+    ck_set_color(CK_COLOR_LIGHT_CYAN);
+    ck_puts("syscheck: kernel sanity checks\n");
+    ck_reset_color();
+
+    if (display_w == 0 || display_h == 0) {
+        ck_puts("  [FAIL] display resolution unavailable\n");
+        ok = 0;
+    } else {
+        ck_printk("  [ OK ] display resolution %ux%u\n",
+                  (unsigned int)display_w, (unsigned int)display_h);
+    }
+
+    if (total_pages == 0 || free_pages > total_pages) {
+        ck_puts("  [FAIL] memory accounting invalid\n");
+        ok = 0;
+    } else {
+        ck_printk("  [ OK ] memory pages free=%llu total=%llu\n", free_pages, total_pages);
+    }
+
+    if (sched_num_tasks() <= 0) {
+        ck_puts("  [FAIL] scheduler task list empty\n");
+        ok = 0;
+    } else {
+        ck_printk("  [ OK ] scheduler tasks visible (%d)\n", sched_num_tasks());
+    }
+
+    if (ticks == 0) {
+        ck_puts("  [WARN] PIT tick count is 0 (very early boot?)\n");
+    } else {
+        ck_printk("  [ OK ] timer ticks=%llu\n", ticks);
+    }
+
+    if (ok) {
+        ck_set_color(CK_COLOR_LIGHT_GREEN);
+        ck_puts("syscheck: all critical checks passed\n");
+    } else {
+        ck_set_color(CK_COLOR_LIGHT_RED);
+        ck_puts("syscheck: one or more critical checks failed\n");
+    }
+    ck_reset_color();
+}
+
+static void shell_print_banner(void)
+{
+    ck_puts("\n");
+    ck_set_color(CK_COLOR_LIGHT_GREEN);
+    ck_puts("   ######   ##   ##\n");
+    ck_puts("  ##       ## ## ##   ComputeKERNEL\n");
+    ck_puts("  ##       ##  ###    Lightweight x86_64 OS shell\n");
+    ck_puts("  ##       ## ## ##\n");
+    ck_puts("   ######  ##   ##\n");
+    ck_reset_color();
 }
 
 static void cmd_scroll(const char *args)
@@ -1335,6 +1656,7 @@ static void shell_exec(char *line)
     else if (strcmp(line, "clear")     == 0) cmd_clear();
     else if (strcmp(line, "uname")     == 0) cmd_uname();
     else if (strcmp(line, "fastfetch") == 0) cmd_fastfetch();
+    else if (strcmp(line, "neofetch")  == 0) cmd_fastfetch();
     else if (strcmp(line, "free")      == 0) cmd_free();
     else if (strcmp(line, "mem")       == 0) cmd_mem();
     else if (strcmp(line, "ls")        == 0) cmd_ls(args);
@@ -1345,6 +1667,8 @@ static void shell_exec(char *line)
     else if (strcmp(line, "cp")        == 0) cmd_cp(args);
     else if (strcmp(line, "mv")        == 0) cmd_mv(args);
     else if (strcmp(line, "rm")        == 0) cmd_rm(args);
+    else if (strcmp(line, "tree")      == 0) cmd_tree(args);
+    else if (strcmp(line, "du")        == 0) cmd_du(args);
     else if (strcmp(line, "mkdir")     == 0) cmd_mkdir(args);
     else if (strcmp(line, "rmdir")     == 0) cmd_rmdir(args);
     else if (strcmp(line, "hexdump")   == 0) cmd_hexdump(args);
@@ -1355,6 +1679,7 @@ static void shell_exec(char *line)
     else if (strcmp(line, "whoami")    == 0) cmd_whoami();
     else if (strcmp(line, "hostname")  == 0) cmd_hostname();
     else if (strcmp(line, "ps")        == 0) cmd_ps();
+    else if (strcmp(line, "tasks")     == 0) cmd_tasks();
     else if (strcmp(line, "sleep")     == 0) cmd_sleep(args);
     else if (strcmp(line, "reboot")    == 0) cmd_reboot();
     else if (strcmp(line, "halt")      == 0) cmd_halt();
@@ -1369,10 +1694,15 @@ static void shell_exec(char *line)
     else if (strcmp(line, "sudo")      == 0) cmd_sudo(args);
     else if (strcmp(line, "netinfo")   == 0) cmd_netinfo();
     else if (strcmp(line, "ssh")       == 0) cmd_ssh();
+    else if (strcmp(line, "motd")      == 0) cmd_motd();
     else if (strcmp(line, "mouse")     == 0) cmd_mouse();
+    else if (strcmp(line, "palette")   == 0) cmd_palette();
+    else if (strcmp(line, "tips")      == 0) cmd_tips();
+    else if (strcmp(line, "syscheck")  == 0) cmd_syscheck();
     else if (strcmp(line, "scroll")    == 0) cmd_scroll(args);
     else if (strcmp(line, "resolution") == 0) cmd_resolution(args);
     else if (strcmp(line, "credits")   == 0) cmd_credits();
+    else if (strcmp(line, "banner")    == 0) shell_print_banner();
     else if (strcmp(line, "kblayout")  == 0) cmd_kblayout(args);
     else if (strcmp(line, "layout")    == 0) cmd_kblayout(args);
     else
@@ -1414,10 +1744,11 @@ void task_shell(void *arg)
     /* Yield once so boot log flushes without blocking on PIT tick timing. */
     sched_yield();
 
+    shell_print_banner();
     ck_set_color(CK_COLOR_LIGHT_GREEN);
-    ck_puts("\nWelcome to ComputeKERNEL!");
+    ck_puts("Welcome to ComputeKERNEL");
     ck_reset_color();
-    ck_puts("  Type 'help' for a list of commands.\n\n");
+    ck_puts("  Type 'help' for commands, 'tips' for shortcuts, 'motd' for status.\n\n");
     print_prompt();
 
     for (;;) {

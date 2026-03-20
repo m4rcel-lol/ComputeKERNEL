@@ -85,6 +85,11 @@ if ! grep -Eq '\btree\b' kernel/shell/shell.c; then
     exit 1
 fi
 
+if ! grep -Eq '\bdu\b' kernel/shell/shell.c; then
+    echo "[test] expected du command support in shell"
+    exit 1
+fi
+
 if ! grep -Eq 'cksh built-in commands' kernel/shell/shell.c; then
     echo "[test] expected structured help banner for shell commands"
     exit 1

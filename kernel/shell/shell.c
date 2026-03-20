@@ -249,6 +249,7 @@ static void cmd_help(void)
     ck_puts("  mv <src> <dst>        move/rename a file or directory\n");
     ck_puts("  rm [-r] <path>        remove a file (or directory with -r)\n");
     ck_puts("  tree [path]           show directory tree (default: cwd)\n");
+    ck_puts("  du [path]             show recursive disk usage (bytes)\n");
     ck_puts("  mkdir <path>          create a directory\n");
     ck_puts("  rmdir <path>          remove an empty directory\n");
     ck_puts("  hexdump <path>        hex dump file contents\n");
@@ -871,6 +872,57 @@ static void cmd_tree(const char *path)
     }
 
     tree_print(resolved, 0);
+}
+
+static u64 du_size(const char *path, int depth)
+{
+    if (depth > 32)
+        return 0;
+
+    struct vfs_node *node = vfs_lookup(path);
+    if (!node)
+        return 0;
+    if (node->type != VFS_DIR)
+        return node->size;
+
+    u64 total = 0;
+    int fd = vfs_open(path, O_RDONLY);
+    if (fd < 0)
+        return node->size;
+
+    char child_name[VFS_NAME_MAX];
+    char child_path[VFS_NAME_MAX];
+    for (u32 i = 0; vfs_readdir(fd, i, child_name) == 0; i++) {
+        size_t plen = strlen(path);
+        size_t nlen = strlen(child_name);
+        if (plen + 1 + nlen >= VFS_NAME_MAX)
+            continue;
+        memcpy(child_path, path, plen);
+        if (child_path[plen - 1] != '/')
+            child_path[plen++] = '/';
+        memcpy(child_path + plen, child_name, nlen + 1);
+        total += du_size(child_path, depth + 1);
+    }
+
+    vfs_close(fd);
+    return total;
+}
+
+static void cmd_du(const char *path)
+{
+    char resolved[VFS_NAME_MAX];
+    if (path_resolve_or_error("du", path, resolved) < 0)
+        return;
+
+    struct vfs_node *node = vfs_lookup(resolved);
+    if (!node) {
+        ck_printk("du: %s: No such file or directory\n",
+                  (path && *path) ? path : resolved);
+        return;
+    }
+
+    u64 size = du_size(resolved, 0);
+    ck_printk("%llu\t%s\n", size, resolved);
 }
 
 static void cmd_cd(const char *path)
@@ -1615,6 +1667,7 @@ static void shell_exec(char *line)
     else if (strcmp(line, "mv")        == 0) cmd_mv(args);
     else if (strcmp(line, "rm")        == 0) cmd_rm(args);
     else if (strcmp(line, "tree")      == 0) cmd_tree(args);
+    else if (strcmp(line, "du")        == 0) cmd_du(args);
     else if (strcmp(line, "mkdir")     == 0) cmd_mkdir(args);
     else if (strcmp(line, "rmdir")     == 0) cmd_rmdir(args);
     else if (strcmp(line, "hexdump")   == 0) cmd_hexdump(args);

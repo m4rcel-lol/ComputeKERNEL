@@ -65,8 +65,108 @@ if ! grep -Eq '\bnetinfo\b' kernel/shell/shell.c; then
     exit 1
 fi
 
-if ! grep -Eq 'TCP/IP stack not available in current kernel build' kernel/shell/shell.c; then
-    echo "[test] expected ssh command to report in-kernel TCP/IP stack status"
+if ! grep -Eq 'kernel/net/stack.c' Makefile; then
+    echo "[test] expected kernel networking stack foundation to be compiled"
+    exit 1
+fi
+
+if ! grep -Eq 'net_init\(\)' kernel/init/main.c; then
+    echo "[test] expected kernel boot path to initialize networking stack foundation"
+    exit 1
+fi
+
+if ! grep -Eq 'foundation ready' kernel/shell/shell.c; then
+    echo "[test] expected shell networking output to include foundation readiness text"
+    exit 1
+fi
+
+if ! grep -Eq 'lwIP planned in-kernel support' kernel/shell/shell.c; then
+    echo "[test] expected shell netinfo output to explicitly reference lwIP support direction"
+    exit 1
+fi
+
+if ! grep -Eq 'lwIP-oriented TCP/IP stack foundation' kernel/init/main.c; then
+    echo "[test] expected kernel boot log to reference lwIP-oriented TCP/IP stack foundation"
+    exit 1
+fi
+
+if ! grep -Eq 'ethertype=0x%04x' kernel/shell/shell.c; then
+    echo "[test] expected ssh command to include networking ethertype details"
+    exit 1
+fi
+
+if ! grep -Eq 'kernel/net/nic.c' Makefile; then
+    echo "[test] expected NIC framework to be compiled in kernel build"
+    exit 1
+fi
+
+if ! grep -Eq 'nic_init\(\)' kernel/init/main.c; then
+    echo "[test] expected kernel boot path to initialize NIC framework"
+    exit 1
+fi
+
+if ! grep -Eq 'nic_device_count' kernel/shell/shell.c; then
+    echo "[test] expected shell netinfo implementation to query NIC framework device count"
+    exit 1
+fi
+
+if ! grep -Eq 'kernel/net/sshd.c' Makefile; then
+    echo "[test] expected SSH daemon scaffold module to be compiled in kernel build"
+    exit 1
+fi
+
+if ! grep -Eq 'sshd_init\(\)' kernel/init/main.c; then
+    echo "[test] expected kernel boot path to initialize SSH daemon scaffold"
+    exit 1
+fi
+
+if ! grep -Eq 'sshd_is_available' kernel/shell/shell.c; then
+    echo "[test] expected ssh command to query in-kernel SSH daemon scaffold availability"
+    exit 1
+fi
+
+if ! grep -Eq 'ssh daemon scaffold available' kernel/shell/shell.c; then
+    echo "[test] expected ssh command to report in-kernel SSH daemon scaffold status"
+    exit 1
+fi
+
+if ! grep -Eq 'sshd_set_enabled' include/ck/ssh.h; then
+    echo "[test] expected ssh header to expose scaffold enable/disable control API"
+    exit 1
+fi
+
+if ! grep -Eq 'sshd_set_enabled\(' kernel/net/sshd.c; then
+    echo "[test] expected ssh daemon scaffold module to implement enable/disable control API"
+    exit 1
+fi
+
+if ! grep -Eq 'ssh \[status\|enable\|disable\]' kernel/shell/shell.c; then
+    echo "[test] expected shell ssh help/usage to include status/enable/disable controls"
+    exit 1
+fi
+
+if ! grep -Eq 'cmd_nics' kernel/shell/shell.c; then
+    echo "[test] expected shell to implement dedicated nics command"
+    exit 1
+fi
+
+if ! grep -Eq 'nics: registered network interface cards' kernel/shell/shell.c; then
+    echo "[test] expected nics command to print NIC device listing header"
+    exit 1
+fi
+
+if ! grep -Eq 'mac=%02x:%02x:%02x:%02x:%02x:%02x' kernel/shell/shell.c; then
+    echo "[test] expected nics command to display NIC MAC addresses"
+    exit 1
+fi
+
+if ! grep -Eq 'TCP/IP network stack[[:space:]]+- In-kernel TCP/IP \(lwIP; foundation parsing/status wired\)' README.md; then
+    echo "[test] expected roadmap TCP/IP implementation choice to be lwIP"
+    exit 1
+fi
+
+if ! grep -Eq 'serial/VFS-backed console' README.md; then
+    echo "[test] expected roadmap/docs console direction to reference VFS-backed console"
     exit 1
 fi
 

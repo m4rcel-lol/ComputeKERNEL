@@ -13,7 +13,7 @@
 > Current shell highlights (`cksh`): `setup`, `setup-guide`, `setup-alpine` (alias), `arch-install` (deprecated, use `setup`),
 > `kblayout`/`layout`, `netinfo`, `mouse`, and `credits`.
 >
-> Networking note: main ISO does **not** yet ship a full in-kernel TCP/IP stack or SSH daemon; the `localhost:2222` to guest `:22` forward is host-side VM plumbing.
+> Networking note: main ISO does **not** yet ship a full in-kernel TCP/IP stack (lwIP planned) or SSH daemon; the `localhost:2222` to guest `:22` forward is host-side VM plumbing.
 
 ## Section 1 — Executive technical definition
 
@@ -69,7 +69,7 @@ Originality is delivered through:
 - reproducible init order and deterministic fallback boot modes
 
 ### Real-hardware bootable (validation interpretation)
-“Real hardware bootable” means boot succeeds from USB ISO on at least two physical x86_64 platforms (different vendors), with serial/framebuffer console, timer interrupts, keyboard input, block device discovery, and init process launch.
+“Real hardware bootable” means boot succeeds from USB ISO on at least two physical x86_64 platforms (different vendors), with serial/VFS-backed console, timer interrupts, keyboard input, block device discovery, and init process launch.
 
 ### Design values
 - determinism over cleverness
@@ -186,7 +186,7 @@ Justification:
 ### Boot design decisions
 - Firmware: support **UEFI first**, BIOS compatibility via GRUB2 multiboot path
 - Bootloader: GRUB2 for MVP (faster reproducible bring-up)
-- Handoff contract: Multiboot2 info + memory map + framebuffer/serial params
+- Handoff contract: Multiboot2 info + memory map + serial params + VFS boot state
 
 ### Startup path details
 - assembly entry in `boot/x86_64/entry64.S`
@@ -196,7 +196,7 @@ Justification:
 - initialize GDT/TSS and IDT stub table
 - parse memory map from bootloader handoff
 - switch into `kmain()` in C
-- bring up early console (serial first, framebuffer optional)
+- bring up early console (serial first, VFS-backed console optional)
 - initialize PMM->VMM->allocator->interrupts->timer->scheduler
 - spawn `kthreadd`, mount rootfs, exec `/sbin/init`
 
@@ -556,7 +556,7 @@ ComputeKERNEL/
 
 ### Boot medium and logging
 - boot from ISO on optical/virtual optical and from USB image variant
-- serial (`COM1`) always enabled; framebuffer console fallback if no serial
+- serial (`COM1`) always enabled; VFS-backed console fallback if no serial
 
 ### Storage/media assumptions
 - initial support: ATAPI/ATA PIO + virtio-blk
@@ -795,7 +795,7 @@ struct ck_driver {
 - serial: 16550/8250
 - timer: PIT + APIC timer
 - keyboard: PS/2
-- display: framebuffer console
+- display: VFS-backed console
 - storage: ATA PIO + virtio-blk
 - NIC roadmap: virtio-net first, then e1000
 
@@ -957,7 +957,7 @@ python3 tools/mkfs_image.py --rootfs rootfs/ --out out/initrd.img --size-mb 512
 - done: root mount from block device
 
 11. **Drivers**
-- files: serial/timer/keyboard/framebuffer
+- files: serial/timer/keyboard/vfs
 - done: basic interactive console
 
 12. **Networking**
@@ -975,6 +975,28 @@ python3 tools/mkfs_image.py --rootfs rootfs/ --out out/initrd.img --size-mb 512
 15. **Real hardware stabilization**
 - files: broad touch across arch/drivers/docs
 - done: two physical machines pass boot matrix
+
+### Advanced subsystem checklist (not yet implemented)
+- [ ] TCP/IP network stack                         - In-kernel TCP/IP (lwIP; foundation parsing/status wired)
+- [x] Network device driver model                  - NIC driver framework
+- [ ] SSH daemon                                   - In-kernel SSH service (research-only; high-risk attack surface; scaffold status wiring only)
+- [ ] SMP (multi-core) support                     - Per-CPU scheduler, IPI, spinlocks
+- [ ] ACPI power management                        - Full ACPI AML interpreter
+- [ ] USB stack                                    - xHCI host controller + USB drivers
+- [ ] NVMe driver                                  - PCIe NVMe block device driver
+- [ ] ext4 filesystem                              - Full ext4 with journaling
+- [ ] procfs / sysfs                               - Runtime kernel info filesystems
+- [ ] Memory-mapped files                          - mmap(MAP_FILE) with page cache
+- [ ] Copy-on-write fork                           - Real COW fork() implementation
+- [ ] POSIX threads (pthreads)                     - Full pthread support
+- [ ] ASLR                                         - Address space layout randomization
+- [ ] KVM hypervisor support                       - Paravirtualization
+- [ ] DRM/KMS graphics                             - Framebuffer + GPU driver model
+- [ ] Audio subsystem                              - ALSA-style audio model
+- [ ] Bluetooth stack                              - HCI/L2CAP model
+- [ ] MAC framework (SELinux/AppArmor-style)       - Mandatory access control
+- [ ] eBPF subsystem                               - In-kernel safe programs
+- [ ] io_uring                                     - Async I/O interface
 
 ---
 
@@ -1268,7 +1290,7 @@ Core subsystems: arch/boot, task+scheduler, mm, syscall, vfs/fs, driver/device, 
 QEMU boots ISO, prints boot log, initializes timer and scheduler, launches `/sbin/init`, accepts keyboard input on console.
 
 ### 5) First real hardware milestone
-Two physical x86_64 systems boot from USB ISO in safe mode and normal mode; serial/framebuffer logs confirm init launch and stable idle for 10 minutes.
+Two physical x86_64 systems boot from USB ISO in safe mode and normal mode; serial/VFS-backed console logs confirm init launch and stable idle for 10 minutes.
 
 ### 6) Commands to build and run
 ```bash

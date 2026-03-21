@@ -275,7 +275,8 @@ static void cmd_help(void)
     ck_puts("  arch-install          legacy alias for setup\n");
     ck_puts("  sudo <command>        execute command as root (live environment)\n");
     ck_puts("  netinfo               show boot-time network status\n");
-    ck_puts("  ssh                   show current SSH support status\n");
+    ck_puts("  nics                  list registered NIC devices and MAC addresses\n");
+    ck_puts("  ssh [status|enable|disable]  show or set SSH scaffold status\n");
     ck_puts("  mouse                 show PS/2 mouse status and position\n");
     ck_puts("  scroll [up|down|top|bottom]  navigate shell scrollback buffer (default: up)\n");
     ck_puts("  resolution [WxH|W H] set or show display resolution (default: 80x25)\n");
@@ -1320,6 +1321,7 @@ static void cmd_netinfo(void)
     const u8 *packet = ck_boot_network_packet_data();
     u32 packet_size = ck_boot_network_packet_size();
     ck_puts("netinfo: guest networking support\n");
+    ck_puts("  tcp/ip  : lwIP planned in-kernel support\n");
     ck_puts("  outbound: available with QEMU user networking (NAT)\n");
     ck_puts("  inbound : hostfwd tcp localhost:2222 -> guest:22\n");
     if (!ck_network_available()) {
@@ -1337,14 +1339,76 @@ static void cmd_netinfo(void)
         ck_printk("            ethertype 0x%04x\n", (unsigned int)ethertype);
     }
     ck_puts("  status  : boot-time packet visibility is active in-kernel\n");
+    ck_printk("  nics    : %u registered via NIC framework\n", (unsigned int)nic_device_count());
+}
+
+static void cmd_nics(void)
+{
+    u32 count = nic_device_count();
+    ck_puts("nics: registered network interface cards\n");
+    if (count == 0) {
+        ck_puts("  (no NICs registered)\n");
+        return;
+    }
+
+    for (u32 i = 0; i < count; i++) {
+        const struct nic_device *dev = nic_get_device(i);
+        if (!dev) {
+            ck_printk("  [%u] <unavailable>\n", (unsigned int)i);
+            continue;
+        }
+        ck_printk("  [%u] %s  mac=%02x:%02x:%02x:%02x:%02x:%02x\n",
+                  (unsigned int)i, dev->name,
+                  (unsigned int)dev->mac_addr[0], (unsigned int)dev->mac_addr[1],
+                  (unsigned int)dev->mac_addr[2], (unsigned int)dev->mac_addr[3],
+                  (unsigned int)dev->mac_addr[4], (unsigned int)dev->mac_addr[5]);
+    }
 }
 
 static void cmd_ssh(void)
 {
     ck_puts("ssh: secure shell access overview\n");
+    ck_puts("  control   : ssh [status|enable|disable]\n");
     ck_puts("  host-side : TCP localhost:2222 -> guest:22 (QEMU user networking)\n");
-    ck_puts("  in-kernel : TCP/IP stack not available in current kernel build\n");
+    if (sshd_is_available()) {
+        ck_printk("  in-kernel : ssh daemon scaffold available (%s)\n",
+                  sshd_is_enabled() ? "enabled" : "disabled");
+    } else {
+        ck_puts("  in-kernel : ssh daemon scaffold not available in current kernel build\n");
+    }
+    if (net_stack_ready()) {
+        ck_printk("  stack     : lwIP-oriented foundation ready (ethertype=0x%04x, ipv4=%s, tcp=%s)\n",
+                  (unsigned int)net_boot_ethertype(),
+                  net_has_boot_ipv4() ? "yes" : "no",
+                  net_has_boot_tcp() ? "yes" : "no");
+    }
     ck_puts("  connect   : use host command ssh -p 2222 root@localhost\n");
+}
+
+static void cmd_ssh_control(const char *args)
+{
+    if (!args || !*args || strcmp(args, "status") == 0) {
+        cmd_ssh();
+        return;
+    }
+
+    if (strcmp(args, "enable") == 0) {
+        if (sshd_set_enabled(1) == 0)
+            ck_puts("ssh: in-kernel daemon scaffold enabled\n");
+        else
+            ck_puts("ssh: in-kernel daemon scaffold unavailable in this build\n");
+        return;
+    }
+
+    if (strcmp(args, "disable") == 0) {
+        if (sshd_set_enabled(0) == 0)
+            ck_puts("ssh: in-kernel daemon scaffold disabled\n");
+        else
+            ck_puts("ssh: in-kernel daemon scaffold unavailable in this build\n");
+        return;
+    }
+
+    ck_puts("ssh: usage: ssh [status|enable|disable]\n");
 }
 
 static void cmd_motd(void)
@@ -1681,7 +1745,8 @@ static void shell_exec(char *line)
     }
     else if (strcmp(line, "sudo")      == 0) cmd_sudo(args);
     else if (strcmp(line, "netinfo")   == 0) cmd_netinfo();
-    else if (strcmp(line, "ssh")       == 0) cmd_ssh();
+    else if (strcmp(line, "nics")      == 0) cmd_nics();
+    else if (strcmp(line, "ssh")       == 0) cmd_ssh_control(args);
     else if (strcmp(line, "motd")      == 0) cmd_motd();
     else if (strcmp(line, "mouse")     == 0) cmd_mouse();
     else if (strcmp(line, "palette")   == 0) cmd_palette();

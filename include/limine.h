@@ -21,7 +21,9 @@
 extern "C" {
 #endif
 
+#ifndef __ASSEMBLER__
 #include <stdint.h>
+#endif
 
 /* Misc */
 
@@ -69,6 +71,8 @@ extern "C" {
 #define LIMINE_LOADED_BASE_REVISION (limine_base_revision[1])
 
 #define LIMINE_COMMON_MAGIC 0xc7b1dd30df4c8b88, 0x0a82e883a194f07b
+
+#ifndef __ASSEMBLER__
 
 struct limine_uuid {
     uint32_t a;
@@ -703,6 +707,8 @@ struct limine_riscv_bsp_hartid_request {
     uint64_t revision;
     LIMINE_PTR(struct limine_riscv_bsp_hartid_response *) response;
 };
+
+#endif
 
 #ifdef __cplusplus
 }

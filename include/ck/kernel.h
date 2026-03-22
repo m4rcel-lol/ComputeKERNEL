@@ -67,8 +67,8 @@ void sched_sleep_ms(u64 ms);
 /* ── Virtual filesystem ─────────────────────────────────────────────── */
 void vfs_init(void);
 
-/* ── Kernel main entry (multiboot2) ─────────────────────────────────── */
-void kmain(unsigned int mb2_magic, unsigned int mb2_info_phys);
+/* ── Kernel main entry (Limine) ─────────────────────────────────────── */
+void kmain(void);
 
 /* ── Panic ──────────────────────────────────────────────────────────── */
 void ck_panic(const char *msg) __attribute__((noreturn));

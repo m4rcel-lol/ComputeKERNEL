@@ -11,10 +11,6 @@ typedef signed short        s16;
 typedef signed int          s32;
 typedef signed long long    s64;
 
-typedef u64   uintptr_t;
-typedef s64   intptr_t;
-typedef u64   size_t;
-typedef s64   ssize_t;
 typedef u64   phys_addr_t;
 
 #ifndef NULL

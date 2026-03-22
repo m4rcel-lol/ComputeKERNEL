@@ -24,7 +24,7 @@
 /* Kernel symbol exported by the linker script */
 extern char _kernel_end[];
 
-/* Limine request defined in boot/x86_64/entry64.S */
+/* Limine request defined in kernel/init/main.c */
 extern struct limine_memmap_request limine_memmap_request;
 extern struct limine_kernel_address_request limine_kernel_address_request;
 
@@ -123,7 +123,7 @@ void pmm_init(void)
         free_page_count += popcount64(~bitmap[w]);
 
     ck_printk("[pmm] %llu MiB usable (%llu pages)\n",
-              (free_page_count * PAGE_SIZE) >> 20, free_page_count);
+              (unsigned long long)((free_page_count * PAGE_SIZE) >> 20), (unsigned long long)free_page_count);
 }
 
 u64 pmm_alloc_page(void)

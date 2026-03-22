@@ -8,11 +8,33 @@
 /* Defined in kernel/shell/shell.c */
 void task_shell(void *arg);
 
-/* Limine requests defined in boot/x86_64/entry64.S */
-extern struct limine_base_revision_request limine_base_revision;
-extern struct limine_framebuffer_request limine_framebuffer_request;
-extern struct limine_memmap_request limine_memmap_request;
-extern struct limine_hhdm_request limine_hhdm_request;
+/* Limine requests */
+__attribute__((section(".limine_requests")))
+static volatile LIMINE_BASE_REVISION(0);
+
+__attribute__((section(".limine_requests")))
+static volatile struct limine_framebuffer_request limine_framebuffer_request = {
+    .id = LIMINE_FRAMEBUFFER_REQUEST,
+    .revision = 0
+};
+
+__attribute__((section(".limine_requests")))
+static volatile struct limine_memmap_request limine_memmap_request = {
+    .id = LIMINE_MEMMAP_REQUEST,
+    .revision = 0
+};
+
+__attribute__((section(".limine_requests")))
+static volatile struct limine_hhdm_request limine_hhdm_request = {
+    .id = LIMINE_HHDM_REQUEST,
+    .revision = 0
+};
+
+__attribute__((section(".limine_requests")))
+static volatile struct limine_kernel_address_request limine_kernel_address_request = {
+    .id = LIMINE_KERNEL_ADDRESS_REQUEST,
+    .revision = 0
+};
 
 /* ── Kernel info banner ─────────────────────────────────────────────── */
 static void print_banner(void)
@@ -32,7 +54,7 @@ static void print_meminfo(void)
     }
 
     struct limine_memmap_response *mmap = limine_memmap_request.response;
-    ck_printk("[mem] memory map (%llu entries):\n", mmap->entry_count);
+    ck_printk("[mem] memory map (%llu entries):\n", (unsigned long long)mmap->entry_count);
 
     for (uint64_t i = 0; i < mmap->entry_count; i++) {
         struct limine_memmap_entry *e = mmap->entries[i];
@@ -49,8 +71,8 @@ static void print_meminfo(void)
         default:                                   type_str = "Unknown";    break;
         }
         ck_printk("  [%016llx - %016llx]  %s\n",
-                  e->base,
-                  e->base + e->length - 1,
+                  (unsigned long long)e->base,
+                  (unsigned long long)(e->base + e->length - 1),
                   type_str);
     }
 }
@@ -66,7 +88,7 @@ void kmain(void)
     serial_puts("ComputeKERNEL: boot sequence starting (Limine)\n");
 
     /* 2. Validate Limine base revision */
-    if (limine_base_revision.response == NULL) {
+    if (!LIMINE_BASE_REVISION_SUPPORTED) {
         ck_puts("[boot] ERROR: Limine base revision not supported\n");
         arch_halt();
     }
@@ -84,7 +106,7 @@ void kmain(void)
     /* 5. Kernel heap */
     ck_puts("[mm] initialising kernel heap ...\n");
     heap_init();
-    ck_printk("[mm] heap ready (%llu pages free)\n", pmm_free_pages());
+    ck_printk("[mm] heap ready (%llu pages free)\n", (unsigned long long)pmm_free_pages());
 
     /* 6. Network stack foundation */
     ck_puts("[net] initialising lwIP-oriented TCP/IP stack foundation ...\n");

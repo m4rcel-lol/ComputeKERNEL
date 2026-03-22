@@ -8,8 +8,7 @@
 /* Forward declaration to avoid circular include */
 void serial_putchar(char c);
 
-/* Limine requests defined in boot/x86_64/entry64.S */
-extern struct limine_base_revision_request limine_base_revision;
+/* Limine requests defined in kernel/init/main.c */
 extern struct limine_framebuffer_request limine_framebuffer_request;
 extern struct limine_hhdm_request limine_hhdm_request;
 

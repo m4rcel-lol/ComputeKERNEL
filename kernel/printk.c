@@ -127,7 +127,6 @@ void ck_early_console_init(void)
     vga_color = VGA_COLOR_WHITE;
     scrollback_used = 0;
     scroll_view = 0;
-    live_saved = 0;
     vga_update_cursor();
 }
 

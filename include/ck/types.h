@@ -14,7 +14,8 @@ typedef int16_t   s16;
 typedef int32_t   s32;
 typedef int64_t   s64;
 
-typedef u64   phys_addr_t;
+typedef s64       ssize_t;
+typedef u64       phys_addr_t;
 
 #ifndef NULL
 #define NULL ((void *)0)

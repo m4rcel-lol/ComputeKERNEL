@@ -9,32 +9,38 @@
 void task_shell(void *arg);
 
 /* Limine requests */
-__attribute__((section(".limine_requests")))
-static volatile LIMINE_BASE_REVISION(0);
+__attribute__((used, section(".limine_requests")))
+LIMINE_REQUESTS_START_MARKER
 
-__attribute__((section(".limine_requests")))
-static volatile struct limine_framebuffer_request limine_framebuffer_request = {
+__attribute__((used, section(".limine_requests")))
+LIMINE_BASE_REVISION(0)
+
+__attribute__((used, section(".limine_requests")))
+struct limine_framebuffer_request limine_framebuffer_request = {
     .id = LIMINE_FRAMEBUFFER_REQUEST,
     .revision = 0
 };
 
-__attribute__((section(".limine_requests")))
-static volatile struct limine_memmap_request limine_memmap_request = {
+__attribute__((used, section(".limine_requests")))
+struct limine_memmap_request limine_memmap_request = {
     .id = LIMINE_MEMMAP_REQUEST,
     .revision = 0
 };
 
-__attribute__((section(".limine_requests")))
-static volatile struct limine_hhdm_request limine_hhdm_request = {
+__attribute__((used, section(".limine_requests")))
+struct limine_hhdm_request limine_hhdm_request = {
     .id = LIMINE_HHDM_REQUEST,
     .revision = 0
 };
 
-__attribute__((section(".limine_requests")))
-static volatile struct limine_kernel_address_request limine_kernel_address_request = {
+__attribute__((used, section(".limine_requests")))
+struct limine_kernel_address_request limine_kernel_address_request = {
     .id = LIMINE_KERNEL_ADDRESS_REQUEST,
     .revision = 0
 };
+
+__attribute__((used, section(".limine_requests")))
+LIMINE_REQUESTS_END_MARKER
 
 /* ── Kernel info banner ─────────────────────────────────────────────── */
 static void print_banner(void)

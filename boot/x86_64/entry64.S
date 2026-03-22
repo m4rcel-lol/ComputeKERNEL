@@ -5,11 +5,6 @@
  * Limine transfers control here in 64-bit long mode.
  */
 
-#include <limine.h>
-
-/* ── Limine Requests ───────────────────────────────────────────────── */
-/* Limine requests are now defined in kernel/init/main.c */
-
 /* ── 64-bit entry point ────────────────────────────────────────────── */
 .section .text
 .code64

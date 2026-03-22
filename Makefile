@@ -26,7 +26,7 @@ CFLAGS  := $(CFLAGS_BASE) $(CFLAGS_PROFILE)
 # Generate dependency files alongside object files
 DEPFLAGS = -MMD -MP
 
-ASFLAGS := -m64 -c
+ASFLAGS := -m64 -c -Iinclude
 
 LDFLAGS := -T arch/x86_64/linker.ld -nostdlib -z max-page-size=0x1000
 

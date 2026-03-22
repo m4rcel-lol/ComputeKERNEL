@@ -227,4 +227,77 @@ void ck_puts(const char *s)
 }
 
 /* ── Full printf-style formatter ────────────────────────────────────── */
-/* (Rest of the file remains unchanged) */
+
+void ck_printk(const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+
+    while (*fmt) {
+        if (*fmt == '%') {
+            fmt++;
+            int long_long = 0;
+            int long_flag = 0;
+
+            if (*fmt == 'l') {
+                long_flag = 1;
+                fmt++;
+                if (*fmt == 'l') {
+                    long_long = 1;
+                    fmt++;
+                }
+            }
+
+            char buf[32];
+            switch (*fmt) {
+            case 's': {
+                const char *s = va_arg(args, const char *);
+                ck_puts(s ? s : "(null)");
+                break;
+            }
+            case 'c': {
+                ck_putchar((char)va_arg(args, int));
+                break;
+            }
+            case 'd': {
+                if (long_long || long_flag) itoa_dec(va_arg(args, s64), buf);
+                else itoa_dec(va_arg(args, int), buf);
+                ck_puts(buf);
+                break;
+            }
+            case 'u': {
+                if (long_long || long_flag) utoa_dec(va_arg(args, u64), buf);
+                else utoa_dec(va_arg(args, unsigned int), buf);
+                ck_puts(buf);
+                break;
+            }
+            case 'x':
+            case 'X': {
+                if (long_long || long_flag) utoa_hex(va_arg(args, u64), buf, (*fmt == 'X'));
+                else utoa_hex(va_arg(args, unsigned int), buf, (*fmt == 'X'));
+                ck_puts(buf);
+                break;
+            }
+            case 'p': {
+                ck_puts("0x");
+                utoa_hex((u64)(uintptr_t)va_arg(args, void *), buf, 0);
+                ck_puts(buf);
+                break;
+            }
+            case '%': {
+                ck_putchar('%');
+                break;
+            }
+            default:
+                ck_putchar('%');
+                ck_putchar(*fmt);
+                break;
+            }
+        } else {
+            ck_putchar(*fmt);
+        }
+        fmt++;
+    }
+
+    va_end(args);
+}

@@ -5,7 +5,7 @@
 
 /* ── Physical Memory Manager ────────────────────────────────────────── */
 
-void  pmm_init(void *mb2_info);       /* call once at boot */
+void  pmm_init(void);                 /* call once at boot */
 u64   pmm_alloc_page(void);           /* returns physical address or 0 */
 u64   pmm_alloc_pages(u64 n);         /* allocate n contiguous pages */
 void  pmm_free_page(u64 phys);

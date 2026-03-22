@@ -19,15 +19,13 @@ extern struct limine_hhdm_request limine_hhdm_request;
 #define VGA_COLOR_WHITE 0x0f   /* white on black (default) */
 #define SCROLLBACK_LINES 200
 
-static int col = 0, row = 0;
+static u32 col = 0, row = 0;
 static u8  vga_color = VGA_COLOR_WHITE;
 static u32 display_width = VGA_COLS;
 static u32 display_height = VGA_ROWS;
 static unsigned short scrollback[SCROLLBACK_LINES][VGA_COLS];
-static unsigned short live_screen[VGA_ROWS][VGA_COLS];
 static u32 scrollback_used = 0;
 static u32 scroll_view = 0;
-static int live_saved = 0;
 
 static int has_framebuffer = 0;
 static struct limine_framebuffer *fb = NULL;
@@ -184,8 +182,8 @@ void ck_putchar(char c)
         
         if (has_framebuffer) {
             /* Clear the character on FB */
-            for (int j = 0; j < 16; j++)
-                for (int i = 0; i < 8; i++)
+            for (u32 j = 0; j < 16; j++)
+                for (u32 i = 0; i < 8; i++)
                     ((u32 *)fb->address)[(row * 16 + j) * (fb->pitch / 4) + (col * 8 + i)] = 0;
         } else {
             VGA_BASE[row * VGA_COLS + col] = ((unsigned short)vga_color << 8) | ' ';

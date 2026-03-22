@@ -132,20 +132,20 @@ void interrupt_dispatch(struct interrupt_frame *frame)
         /* CPU exception */
         const char *name = (vec < ARRAY_SIZE(exc_names)) ? exc_names[vec] : "Unknown Exception";
 
-        ck_printk("\n*** EXCEPTION %llu: %s ***\n", vec, name);
+        ck_printk("\n*** EXCEPTION %llu: %s ***\n", (unsigned long long)vec, name);
         ck_printk("  RIP=%016llx  CS=%04llx  RFLAGS=%016llx\n",
-                  frame->rip, frame->cs, frame->rflags);
+                  (unsigned long long)frame->rip, (unsigned long long)frame->cs, (unsigned long long)frame->rflags);
         ck_printk("  RSP=%016llx  SS=%04llx\n",
-                  frame->rsp, frame->ss);
+                  (unsigned long long)frame->rsp, (unsigned long long)frame->ss);
         ck_printk("  RAX=%016llx  RBX=%016llx  RCX=%016llx\n",
-                  frame->rax, frame->rbx, frame->rcx);
+                  (unsigned long long)frame->rax, (unsigned long long)frame->rbx, (unsigned long long)frame->rcx);
         ck_printk("  RDX=%016llx  RSI=%016llx  RDI=%016llx\n",
-                  frame->rdx, frame->rsi, frame->rdi);
-        ck_printk("  Error code: %016llx\n", frame->error_code);
+                  (unsigned long long)frame->rdx, (unsigned long long)frame->rsi, (unsigned long long)frame->rdi);
+        ck_printk("  Error code: %016llx\n", (unsigned long long)frame->error_code);
 
         if (vec == 14) {
             /* Page fault: print CR2 (faulting address) */
-            ck_printk("  CR2 (fault addr): %016llx\n", read_cr2());
+            ck_printk("  CR2 (fault addr): %016llx\n", (unsigned long long)read_cr2());
             ck_printk("  PF flags: %s %s %s\n",
                       (frame->error_code & 1) ? "PROT" : "NOT-PRESENT",
                       (frame->error_code & 2) ? "WRITE" : "READ",

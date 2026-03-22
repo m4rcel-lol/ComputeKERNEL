@@ -9,8 +9,15 @@
 /* Task states */
 #define TASK_RUNNING   0
 #define TASK_READY     1
-#define TASK_BLOCKED   2
+#define TASK_BLOCKED   2   /* waiting on a sleep or event */
 #define TASK_DEAD      3
+
+/* Task priority levels (lower number = higher priority) */
+#define TASK_PRIO_HIGH    0
+#define TASK_PRIO_NORMAL  1
+#define TASK_PRIO_LOW     2
+#define TASK_PRIO_IDLE    3
+#define TASK_PRIO_COUNT   4
 
 typedef void (*task_func_t)(void *arg);
 
@@ -20,21 +27,29 @@ struct task {
     u64          stack_size;
     int          state;
     int          tid;
+    int          priority;              /* TASK_PRIO_* */
     char         name[TASK_NAME_LEN];
     u64          ticks;                  /* total timer ticks consumed */
+    u64          sleep_until;           /* wake tick (when state == TASK_BLOCKED) */
 };
 
 /* Initialise the scheduler and create the idle task */
 void sched_init(void);
 
-/* Create a new kernel task; returns tid ≥ 0 on success, -1 on failure */
+/* Create a new kernel task; returns tid ≥ 0 on success, -1 on failure.
+ * priority: TASK_PRIO_NORMAL is the default (pass 0 to use default). */
 int  task_create(const char *name, task_func_t fn, void *arg, size_t stack_size);
+int  task_create_prio(const char *name, task_func_t fn, void *arg,
+                      size_t stack_size, int priority);
 
 /* Called from the timer interrupt handler */
 void sched_tick(void);
 
 /* Voluntarily yield to the scheduler */
 void sched_yield(void);
+
+/* Sleep for approximately ms milliseconds (timer-tick granularity) */
+void sched_sleep_ms(u64 ms);
 
 /* Start scheduler execution from boot context (never returns) */
 void sched_start(void) __attribute__((noreturn));

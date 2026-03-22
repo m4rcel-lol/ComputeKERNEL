@@ -13,7 +13,7 @@
  * Maximum supported RAM: 4 GiB (identity-mapped by the boot page tables).
  */
 #include <ck/mm.h>
-#include <ck/multiboot2.h>
+#include <limine.h>
 #include <ck/kernel.h>
 #include <ck/string.h>
 #include <ck/types.h>
@@ -23,6 +23,10 @@
 
 /* Kernel symbol exported by the linker script */
 extern char _kernel_end[];
+
+/* Limine request defined in boot/x86_64/entry64.S */
+extern struct limine_memmap_request limine_memmap_request;
+extern struct limine_kernel_address_request limine_kernel_address_request;
 
 static u64  bitmap[BITMAP_WORDS];      /* 0 = free, 1 = used */
 static u64  total_pages = 0;
@@ -57,37 +61,28 @@ static u64 popcount64(u64 x)
     return (x * 0x0101010101010101ULL) >> 56;
 }
 
-void pmm_init(void *mb2_info_ptr)
+void pmm_init(void)
 {
-    struct mb2_info        *info  = (struct mb2_info *)mb2_info_ptr;
-    struct mb2_tag         *tag;
-    struct mb2_tag_mmap    *mmap_tag;
-    struct mb2_mmap_entry  *entry;
+    struct limine_memmap_response *mmap = limine_memmap_request.response;
 
     /* Start with everything marked used */
     memset(bitmap, 0xff, sizeof(bitmap));
     total_pages     = 0;
     free_page_count = 0;
 
-    /* Find the memory map tag */
-    tag = mb2_find_tag(info, MB2_TAG_MMAP);
-    if (!tag) {
-        ck_puts("[pmm] WARNING: no multiboot2 memory map; PMM unavailable\n");
+    if (!mmap) {
+        ck_puts("[pmm] WARNING: no Limine memory map; PMM unavailable\n");
         return;
     }
 
-    mmap_tag = (struct mb2_tag_mmap *)tag;
-    u32 num_entries = (mmap_tag->size - 16) / mmap_tag->entry_size;
+    for (uint64_t i = 0; i < mmap->entry_count; i++) {
+        struct limine_memmap_entry *entry = mmap->entries[i];
 
-    for (u32 i = 0; i < num_entries; i++) {
-        entry = (struct mb2_mmap_entry *)
-                ((u8 *)mmap_tag->entries + i * mmap_tag->entry_size);
-
-        if (entry->type != MB2_MMAP_AVAILABLE)
+        if (entry->type != LIMINE_MEMMAP_USABLE)
             continue;
 
-        u64 base = ALIGN_UP(entry->base_addr, PAGE_SIZE);
-        u64 end  = ALIGN_DOWN(entry->base_addr + entry->length, PAGE_SIZE);
+        u64 base = ALIGN_UP(entry->base, PAGE_SIZE);
+        u64 end  = ALIGN_DOWN(entry->base + entry->length, PAGE_SIZE);
         if (end <= base)
             continue;
 
@@ -105,16 +100,22 @@ void pmm_init(void *mb2_info_ptr)
     for (u64 phys = 0; phys < 0x100000ULL; phys += PAGE_SIZE)
         bm_set(phys >> PAGE_SHIFT);
 
-    /* Re-mark the kernel image pages */
-    u64 kend = ALIGN_UP((u64)(uintptr_t)_kernel_end, PAGE_SIZE);
-    for (u64 phys = 0x100000ULL; phys < kend; phys += PAGE_SIZE)
-        bm_set(phys >> PAGE_SHIFT);
-
-    /* Re-mark the multiboot2 info struct itself */
-    u64 mb2_start = ALIGN_DOWN((u64)(uintptr_t)mb2_info_ptr, PAGE_SIZE);
-    u64 mb2_end   = ALIGN_UP((u64)(uintptr_t)mb2_info_ptr + info->total_size, PAGE_SIZE);
-    for (u64 phys = mb2_start; phys < mb2_end; phys += PAGE_SIZE)
-        bm_set(phys >> PAGE_SHIFT);
+    /* Re-mark the kernel image pages using Limine's reported physical address */
+    if (limine_kernel_address_request.response) {
+        struct limine_kernel_address_response *ka = limine_kernel_address_request.response;
+        u64 k_phys_base = ka->physical_base;
+        u64 k_virt_base = ka->virtual_base;
+        u64 k_size = ALIGN_UP((u64)(uintptr_t)_kernel_end, PAGE_SIZE) - k_virt_base;
+        
+        for (u64 off = 0; off < k_size; off += PAGE_SIZE) {
+            bm_set((k_phys_base + off) >> PAGE_SHIFT);
+        }
+    } else {
+        /* Fallback if no kernel address request (shouldn't happen with Limine) */
+        u64 kend = ALIGN_UP((u64)(uintptr_t)_kernel_end, PAGE_SIZE);
+        for (u64 phys = 0x100000ULL; phys < kend; phys += PAGE_SIZE)
+            bm_set(phys >> PAGE_SHIFT);
+    }
 
     /* Recount free pages (bitmap was updated after counting) */
     free_page_count = 0;
@@ -130,7 +131,7 @@ u64 pmm_alloc_page(void)
     for (u64 w = 0; w < BITMAP_WORDS; w++) {
         if (bitmap[w] == ~0ULL)
             continue;
-        /* Find the first 0 bit */
+        /* Find the first 0 bit using ctz (count trailing zeros) */
         int bit = __builtin_ctzll(~bitmap[w]);
         u64 page = w * 64 + (u64)bit;
         bm_set(page);
@@ -138,6 +139,38 @@ u64 pmm_alloc_page(void)
         return page << PAGE_SHIFT;
     }
     return 0; /* out of memory */
+}
+
+/*
+ * Allocate n physically contiguous pages.
+ * Returns the physical base address, or 0 on failure.
+ * Simple linear scan – suitable for small n (DMA buffers, etc.).
+ */
+u64 pmm_alloc_pages(u64 n)
+{
+    if (n == 0) return 0;
+    if (n == 1) return pmm_alloc_page();
+
+    u64 run_start = 0;
+    u64 run_len   = 0;
+
+    for (u64 page = 0; page < MAX_PHYS_PAGES; page++) {
+        if (!bm_test(page)) {
+            if (run_len == 0) run_start = page;
+            run_len++;
+            if (run_len == n) {
+                /* Found a run – mark all pages used */
+                for (u64 i = run_start; i < run_start + n; i++) {
+                    bm_set(i);
+                    free_page_count--;
+                }
+                return run_start << PAGE_SHIFT;
+            }
+        } else {
+            run_len = 0;
+        }
+    }
+    return 0; /* no contiguous run found */
 }
 
 void pmm_free_page(u64 phys)
@@ -151,8 +184,14 @@ void pmm_free_page(u64 phys)
     free_page_count++;
 }
 
+void pmm_free_pages_range(u64 phys, u64 n)
+{
+    for (u64 i = 0; i < n; i++)
+        pmm_free_page(phys + i * PAGE_SIZE);
+}
+
 u64 pmm_total_pages(void) { return total_pages; }
 u64 pmm_free_pages(void)  { return free_page_count; }
 
 /* Alias matching the kernel.h public API */
-void mm_early_init(void *mb2_info) { pmm_init(mb2_info); }
+void mm_early_init(void) { pmm_init(); }

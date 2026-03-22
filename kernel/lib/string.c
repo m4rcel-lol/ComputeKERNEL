@@ -202,3 +202,16 @@ int utoa_hex(u64 val, char *buf, int upper)
     buf[n] = '\0';
     return n;
 }
+
+char *strstr(const char *haystack, const char *needle)
+{
+    if (!needle || !*needle)
+        return (char *)haystack;
+    size_t nlen = strlen(needle);
+    while (*haystack) {
+        if (strncmp(haystack, needle, nlen) == 0)
+            return (char *)haystack;
+        haystack++;
+    }
+    return NULL;
+}

@@ -2,18 +2,25 @@ ENTRY(_start)
 
 SECTIONS
 {
-    . = 1M;
+    /* Link at 0xffffffff80000000 (higher-half x86_64) */
+    . = 0xffffffff80000000;
 
-    /* Multiboot2 header must appear within the first 32 KiB of the image */
-    .multiboot2 : { *(.multiboot2) }
+    /* Limine requests must be within the kernel binary */
+    .limine_requests : {
+        KEEP(*(.limine_requests))
+    }
 
     .text : {
-        *(.text.entry32)   /* 32-bit boot entry + long-mode switch */
         *(.text*)
     }
 
-    .rodata : ALIGN(4096) { *(.rodata*) }
-    .data   : ALIGN(4096) { *(.data*)   }
+    .rodata : ALIGN(4096) {
+        *(.rodata*)
+    }
+
+    .data : ALIGN(4096) {
+        *(.data*)
+    }
 
     .bss : ALIGN(4096) {
         *(COMMON)
@@ -23,4 +30,3 @@ SECTIONS
     /* Symbol marking the end of the kernel image (used by PMM) */
     _kernel_end = .;
 }
-

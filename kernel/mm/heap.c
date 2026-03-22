@@ -178,3 +178,39 @@ void free_pages(void *ptr, size_t n)
     for (size_t i = 0; i < n; i++)
         pmm_free_page((u64)(uintptr_t)ptr + i * PAGE_SIZE);
 }
+
+/*
+ * krealloc – resize a heap allocation.
+ * If ptr is NULL, behaves like kmalloc(size).
+ * If size is 0, behaves like kfree(ptr) and returns NULL.
+ * On failure, the original allocation is preserved and NULL is returned.
+ */
+void *krealloc(void *ptr, size_t size)
+{
+    if (!ptr)
+        return kmalloc(size);
+    if (size == 0) {
+        kfree(ptr);
+        return NULL;
+    }
+
+    struct block_hdr *hdr = (struct block_hdr *)((u8 *)ptr - HDR_SIZE);
+    if (hdr->magic != BLOCK_MAGIC_USED) {
+        ck_puts("[heap] krealloc: bad magic\n");
+        return NULL;
+    }
+
+    /* If the current block is already large enough, return as-is */
+    size_t aligned = ALIGN16(size);
+    if (hdr->size >= aligned)
+        return ptr;
+
+    /* Allocate a new block, copy, free the old one */
+    void *new_ptr = kmalloc(size);
+    if (!new_ptr)
+        return NULL;  /* original preserved */
+
+    memcpy(new_ptr, ptr, hdr->size);
+    kfree(ptr);
+    return new_ptr;
+}

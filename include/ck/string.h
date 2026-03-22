@@ -23,4 +23,7 @@ int    itoa_dec(s64 val, char *buf);   /* returns chars written */
 int    utoa_dec(u64 val, char *buf);
 int    utoa_hex(u64 val, char *buf, int upper);
 
+/* Substring search */
+char  *strstr(const char *haystack, const char *needle);
+
 #endif /* CK_STRING_H */

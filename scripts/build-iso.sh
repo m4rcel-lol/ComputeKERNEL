@@ -1,47 +1,47 @@
 #!/usr/bin/env sh
-# build-iso.sh — builds one universal ComputeKERNEL ISO that boots on any
-# hardware (BIOS / UEFI, USB / DVD / optical) and inside any VM
-# (QEMU, KVM, VirtualBox, VMware, Hyper-V, …).
+# build-iso.sh — builds a Limine-based ISO for ComputeKERNEL
 set -eu
 
 ISO_ROOT="build/iso_root"
 ISO_PATH="out/computekernel.iso"
+LIMINE_DIR="Limine-8.x-binary"
 
-# Assemble the ISO directory tree
-if [ -z "${ISO_ROOT}" ] || [ "${ISO_ROOT}" = "/" ]; then
-    echo "[CK] refusing to remove unsafe ISO_ROOT='${ISO_ROOT}'"
-    exit 1
-fi
+# 1. Clean and recreate ISO root
 rm -rf "${ISO_ROOT}"
-mkdir -p "${ISO_ROOT}/boot/grub"
-cp out/computekernel.elf "${ISO_ROOT}/boot/computekernel.elf"
-cp boot/grub/grub.cfg    "${ISO_ROOT}/boot/grub/grub.cfg"
+mkdir -p "${ISO_ROOT}/boot"
+mkdir -p "${ISO_ROOT}/EFI/BOOT"
 
-mkdir -p "${ISO_ROOT}/etc"
-cat > "${ISO_ROOT}/etc/live.conf" <<'EOF'
-USER=root
-# WARNING: test-only defaults for local live media validation; do not ship to production.
-ROOT_PASSWORD_DEFAULTS=toor,password
-DEFAULT_KEYBOARD_LAYOUT=us
-EOF
+# 2. Copy kernel and config
+cp out/computekernel.elf "${ISO_ROOT}/boot/computekernel.elf"
+cp limine.conf           "${ISO_ROOT}/boot/limine.conf"
+
+# 3. Copy Limine bootloader files
+# BIOS
+cp "${LIMINE_DIR}/limine-bios.sys"    "${ISO_ROOT}/boot/"
+cp "${LIMINE_DIR}/limine-bios-cd.bin" "${ISO_ROOT}/boot/"
+# UEFI
+cp "${LIMINE_DIR}/limine-uefi-cd.bin" "${ISO_ROOT}/boot/"
+cp "${LIMINE_DIR}/BOOTX64.EFI"        "${ISO_ROOT}/EFI/BOOT/"
+cp "${LIMINE_DIR}/BOOTIA32.EFI"       "${ISO_ROOT}/EFI/BOOT/"
 
 mkdir -p out
 
-# Universal image: force GRUB plain-text console so it works on bare metal
-# (no VESA/GOP firmware required) AND inside every common hypervisor.
-GRUB_TERMINAL=console GRUB_TERMINAL_OUTPUT=console \
-    grub-mkrescue -o "${ISO_PATH}" "${ISO_ROOT}"
-
-# Post-process into a hybrid image so the same .iso file can be written
-# directly to a USB drive (BIOS or UEFI) without a separate tool.
-if command -v isohybrid >/dev/null 2>&1; then
-    if isohybrid --uefi "${ISO_PATH}" 2>/dev/null; then
-        echo "[CK] isohybrid --uefi applied (USB-bootable on UEFI + BIOS)"
-    elif isohybrid "${ISO_PATH}" 2>/dev/null; then
-        echo "[CK] isohybrid (BIOS) fallback applied (USB-bootable on BIOS)"
-    else
-        echo "[CK] warning: isohybrid post-processing failed (ISO still usable)"
+# 4. Build the ISO using xorriso (if available)
+if command -v xorriso >/dev/null 2>&1; then
+    xorriso -as mkisofs -b boot/limine-bios-cd.bin \
+        -no-emul-boot -boot-load-size 4 -boot-info-table \
+        --efi-boot boot/limine-uefi-cd.bin \
+        -efi-boot-part --efi-boot-image --protective-msdos-label \
+        "${ISO_ROOT}" -o "${ISO_PATH}"
+    
+    # 5. Enroll the Limine BIOS bootloader (hybrid ISO)
+    if [ -f "./${LIMINE_DIR}/limine" ]; then
+        ./${LIMINE_DIR}/limine bios-install "${ISO_PATH}"
+    elif [ -f "./${LIMINE_DIR}/limine.exe" ]; then
+        ./${LIMINE_DIR}/limine.exe bios-install "${ISO_PATH}"
     fi
+    echo "[CK] Limine ISO → ${ISO_PATH}"
+else
+    echo "[CK] error: xorriso not found. Please install xorriso to build the ISO."
+    echo "[CK] you can also manually build the ISO from '${ISO_ROOT}' using any ISO tool."
 fi
-
-echo "[CK] Universal ISO → ${ISO_PATH}"

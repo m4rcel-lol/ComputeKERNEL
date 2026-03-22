@@ -11,7 +11,6 @@
 #include <ck/kernel.h>
 #include <ck/string.h>
 #include <ck/types.h>
-
 /* Per-file private data */
 struct ramfs_file_data {
     u8    *buf;
@@ -39,12 +38,12 @@ static ssize_t ramfs_write(struct vfs_node *node, const void *buf, size_t len, u
     /* Grow buffer if necessary */
     if (end_off > d->cap) {
         size_t new_cap = (size_t)end_off * 2;
-        u8 *new_buf = (u8 *)kmalloc(new_cap);
+        if (new_cap < 64) new_cap = 64;
+        u8 *new_buf = (u8 *)krealloc(d->buf, new_cap);
         if (!new_buf) return -1;
-        if (d->buf) {
-            memcpy(new_buf, d->buf, (size_t)node->size);
-            kfree(d->buf);
-        }
+        /* Zero the newly allocated region */
+        if (new_cap > d->cap)
+            memset(new_buf + d->cap, 0, new_cap - d->cap);
         d->buf = new_buf;
         d->cap = new_cap;
     }

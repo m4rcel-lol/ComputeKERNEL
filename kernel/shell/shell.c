@@ -246,14 +246,17 @@ static void cmd_help(void)
     ck_puts("  stat <path>           show file or directory metadata\n");
     ck_puts("  touch <path>          create an empty file\n");
     ck_puts("  write <path> <text>   write text to a file (overwrites)\n");
+    ck_puts("  append <path> <text>  append text to a file\n");
     ck_puts("  cp <src> <dst>        copy a file\n");
     ck_puts("  mv <src> <dst>        move/rename a file or directory\n");
     ck_puts("  rm [-r] <path>        remove a file (or directory with -r)\n");
     ck_puts("  tree [path]           show directory tree (default: cwd)\n");
     ck_puts("  du [path]             show recursive disk usage (bytes)\n");
-    ck_puts("  mkdir <path>          create a directory\n");
+    ck_puts("  mkdir [-p] <path>     create a directory (with -p: create parents)\n");
     ck_puts("  rmdir <path>          remove an empty directory\n");
     ck_puts("  hexdump <path>        hex dump file contents\n");
+    ck_puts("  grep <pat> <path>     search for pattern in file\n");
+    ck_puts("  wc <path>             count lines, words, bytes\n");
     ck_puts("  cd [path]             change working directory\n");
     ck_puts("  pwd                   print working directory\n");
 
@@ -549,6 +552,43 @@ static void cmd_write(const char *args)
     vfs_close(fd);
 }
 
+static void cmd_append(const char *args)
+{
+    if (!args || !*args) {
+        ck_puts("append: usage: append <path> <text>\n");
+        return;
+    }
+
+    const char *p = args;
+    while (*p && *p != ' ') p++;
+    if (!*p) {
+        ck_puts("append: usage: append <path> <text>\n");
+        return;
+    }
+
+    char path[VFS_NAME_MAX];
+    size_t pathlen = (size_t)(p - args);
+    if (pathlen >= VFS_NAME_MAX) pathlen = VFS_NAME_MAX - 1;
+    memcpy(path, args, pathlen);
+    path[pathlen] = '\0';
+
+    const char *text = p + 1;
+
+    char resolved[VFS_NAME_MAX];
+    if (path_resolve_or_error("append", path, resolved) < 0)
+        return;
+
+    int fd = vfs_open(resolved, O_WRONLY | O_CREAT | O_APPEND);
+    if (fd < 0) {
+        ck_printk("append: %s: cannot open file\n", resolved);
+        return;
+    }
+    size_t len = strlen(text);
+    if (len > 0) vfs_write(fd, text, len);
+    vfs_write(fd, "\n", 1);
+    vfs_close(fd);
+}
+
 static void cmd_cp(const char *args)
 {
     if (!args || !*args) {
@@ -639,29 +679,35 @@ static int rm_recursive(const char *path)
     if (node->type != VFS_DIR)
         return vfs_unlink(path);
 
+    /* Collect child names first, then recurse.
+     * We cannot iterate while deleting because deletion modifies the list. */
+    char names[32][VFS_NAME_MAX];
+    int  count = 0;
+
     int fd = vfs_open(path, O_RDONLY);
     if (fd < 0)
         return -1;
 
-    char name[VFS_NAME_MAX];
-    while (vfs_readdir(fd, 0, name) == 0) {
+    for (u32 i = 0; i < 32; i++) {
+        if (vfs_readdir(fd, i, names[count]) != 0)
+            break;
+        count++;
+    }
+    vfs_close(fd);
+
+    for (int i = 0; i < count; i++) {
         char child[VFS_NAME_MAX];
         size_t plen = strlen(path);
-        size_t nlen = strlen(name);
-        if (plen + 1 + nlen >= VFS_NAME_MAX) {
-            vfs_close(fd);
+        size_t nlen = strlen(names[i]);
+        if (plen + 1 + nlen >= VFS_NAME_MAX)
             return -1;
-        }
         memcpy(child, path, plen);
         if (child[plen - 1] != '/')
             child[plen++] = '/';
-        memcpy(child + plen, name, nlen + 1);
-        if (rm_recursive(child) < 0) {
-            vfs_close(fd);
+        memcpy(child + plen, names[i], nlen + 1);
+        if (rm_recursive(child) < 0)
             return -1;
-        }
     }
-    vfs_close(fd);
     return vfs_unlink(path);
 }
 
@@ -725,9 +771,24 @@ static void cmd_rm(const char *args)
         ck_printk("rm: %s: cannot remove\n", resolved);
 }
 
-static void cmd_mkdir(const char *path)
+static void cmd_mkdir(const char *args)
 {
-    if (!path || !*path) {
+    if (!args || !*args) {
+        ck_puts("mkdir: missing operand\n");
+        return;
+    }
+
+    int parents = 0;
+    const char *path = args;
+
+    /* Parse -p flag */
+    if (path[0] == '-' && path[1] == 'p' && (path[2] == ' ' || path[2] == '\0')) {
+        parents = 1;
+        path += 2;
+        while (*path == ' ') path++;
+    }
+
+    if (!*path) {
         ck_puts("mkdir: missing operand\n");
         return;
     }
@@ -736,8 +797,30 @@ static void cmd_mkdir(const char *path)
     if (path_resolve_or_error("mkdir", path, resolved) < 0)
         return;
 
-    if (vfs_mkdir(resolved) < 0)
-        ck_printk("mkdir: %s: cannot create directory\n", resolved);
+    if (!parents) {
+        if (vfs_mkdir(resolved) < 0)
+            ck_printk("mkdir: %s: cannot create directory\n", resolved);
+        return;
+    }
+
+    /* -p: create all intermediate directories */
+    char tmp[VFS_NAME_MAX];
+    size_t len = strlen(resolved);
+    if (len >= VFS_NAME_MAX) {
+        ck_puts("mkdir: path too long\n");
+        return;
+    }
+    memcpy(tmp, resolved, len + 1);
+
+    for (size_t i = 1; i <= len; i++) {
+        if (tmp[i] == '/' || tmp[i] == '\0') {
+            char save = tmp[i];
+            tmp[i] = '\0';
+            /* Ignore errors – directory may already exist */
+            vfs_mkdir(tmp);
+            tmp[i] = save;
+        }
+    }
 }
 
 static void cmd_rmdir(const char *path)
@@ -974,14 +1057,23 @@ static const char *task_state_str(int state)
 static void cmd_ps(void)
 {
     int n = sched_num_tasks();
-    ck_puts("  TID  STATE    TICKS      NAME\n");
-    ck_puts("  ---  ------   ---------  ----\n");
+    ck_puts("  TID  PRI  STATE    TICKS      NAME\n");
+    ck_puts("  ---  ---  ------   ---------  ----\n");
     for (int i = 0; i < n; i++) {
         struct task *t = sched_get_task(i);
         if (!t)
             continue;
-        ck_printk("  %3d  %-8s %9llu  %s\n",
-                  t->tid, task_state_str(t->state), t->ticks, t->name);
+        const char *prio_str;
+        switch (t->priority) {
+        case TASK_PRIO_HIGH:   prio_str = "high"; break;
+        case TASK_PRIO_NORMAL: prio_str = "norm"; break;
+        case TASK_PRIO_LOW:    prio_str = "low";  break;
+        case TASK_PRIO_IDLE:   prio_str = "idle"; break;
+        default:               prio_str = "?";    break;
+        }
+        ck_printk("  %3d  %-4s %-8s %9llu  %s\n",
+                  t->tid, prio_str, task_state_str(t->state),
+                  t->ticks, t->name);
     }
 }
 
@@ -1010,7 +1102,8 @@ static void cmd_sleep(const char *arg)
         ck_puts("sleep: invalid interval\n");
         return;
     }
-    pit_sleep_ms(secs * 1000ULL);
+    /* Use scheduler sleep (yields CPU) instead of busy-waiting */
+    sched_sleep_ms(secs * 1000ULL);
 }
 
 static void cmd_pwd(void)
@@ -1589,8 +1682,111 @@ static void shell_print_banner(void)
     ck_reset_color();
 }
 
-static void cmd_scroll(const char *args)
+/* ── grep: search for a pattern in a file ───────────────────────────── */
+static void cmd_grep(const char *args)
 {
+    if (!args || !*args) {
+        ck_puts("grep: usage: grep <pattern> <file>\n");
+        return;
+    }
+
+    /* Split pattern and file */
+    const char *p = args;
+    while (*p && *p != ' ') p++;
+    if (!*p) {
+        ck_puts("grep: usage: grep <pattern> <file>\n");
+        return;
+    }
+
+    char pattern[128];
+    size_t plen = (size_t)(p - args);
+    if (plen >= sizeof(pattern)) plen = sizeof(pattern) - 1;
+    memcpy(pattern, args, plen);
+    pattern[plen] = '\0';
+
+    const char *file_arg = p + 1;
+    while (*file_arg == ' ') file_arg++;
+
+    char resolved[VFS_NAME_MAX];
+    if (path_resolve_or_error("grep", file_arg, resolved) < 0)
+        return;
+
+    int fd = vfs_open(resolved, O_RDONLY);
+    if (fd < 0) {
+        ck_printk("grep: %s: No such file or directory\n", resolved);
+        return;
+    }
+
+    char line[256];
+    int  lpos = 0;
+    char buf[64];
+    ssize_t n;
+    int  matches = 0;
+
+    while ((n = vfs_read(fd, buf, sizeof(buf))) > 0) {
+        for (ssize_t i = 0; i < n; i++) {
+            char c = buf[i];
+            if (c == '\n' || lpos >= (int)sizeof(line) - 1) {
+                line[lpos] = '\0';
+                /* Simple substring search using strstr */
+                if (strstr(line, pattern)) {
+                    ck_puts(line);
+                    ck_putchar('\n');
+                    matches++;
+                }
+                lpos = 0;
+            } else {
+                line[lpos++] = c;
+            }
+        }
+    }
+    vfs_close(fd);
+
+    if (matches == 0)
+        ck_printk("grep: no matches for '%s' in %s\n", pattern, resolved);
+}
+
+/* ── wc: count lines, words, bytes ─────────────────────────────────── */
+static void cmd_wc(const char *path)
+{
+    if (!path || !*path) {
+        ck_puts("wc: missing file operand\n");
+        return;
+    }
+
+    char resolved[VFS_NAME_MAX];
+    if (path_resolve_or_error("wc", path, resolved) < 0)
+        return;
+
+    int fd = vfs_open(resolved, O_RDONLY);
+    if (fd < 0) {
+        ck_printk("wc: %s: No such file or directory\n", resolved);
+        return;
+    }
+
+    u64  lines = 0, words = 0, bytes = 0;
+    int  in_word = 0;
+    char buf[128];
+    ssize_t n;
+
+    while ((n = vfs_read(fd, buf, sizeof(buf))) > 0) {
+        bytes += (u64)n;
+        for (ssize_t i = 0; i < n; i++) {
+            char c = buf[i];
+            if (c == '\n') lines++;
+            if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+                in_word = 0;
+            } else if (!in_word) {
+                in_word = 1;
+                words++;
+            }
+        }
+    }
+    vfs_close(fd);
+    ck_printk("%6llu %6llu %6llu %s\n", lines, words, bytes, resolved);
+}
+
+static void cmd_scroll(const char *args){
     if (!args || !*args || strcmp(args, "up") == 0) {
         ck_console_scroll_up(10);
         return;
@@ -1716,6 +1912,7 @@ static void shell_exec(char *line)
     else if (strcmp(line, "stat")      == 0) cmd_stat(args);
     else if (strcmp(line, "touch")     == 0) cmd_touch(args);
     else if (strcmp(line, "write")     == 0) cmd_write(args);
+    else if (strcmp(line, "append")    == 0) cmd_append(args);
     else if (strcmp(line, "cp")        == 0) cmd_cp(args);
     else if (strcmp(line, "mv")        == 0) cmd_mv(args);
     else if (strcmp(line, "rm")        == 0) cmd_rm(args);
@@ -1724,6 +1921,8 @@ static void shell_exec(char *line)
     else if (strcmp(line, "mkdir")     == 0) cmd_mkdir(args);
     else if (strcmp(line, "rmdir")     == 0) cmd_rmdir(args);
     else if (strcmp(line, "hexdump")   == 0) cmd_hexdump(args);
+    else if (strcmp(line, "grep")      == 0) cmd_grep(args);
+    else if (strcmp(line, "wc")        == 0) cmd_wc(args);
     else if (strcmp(line, "cd")        == 0) cmd_cd(args);
     else if (strcmp(line, "pwd")       == 0) cmd_pwd();
     else if (strcmp(line, "history")   == 0) cmd_history();
@@ -1758,31 +1957,106 @@ static void shell_exec(char *line)
     else if (strcmp(line, "banner")    == 0) shell_print_banner();
     else if (strcmp(line, "kblayout")  == 0) cmd_kblayout(args);
     else if (strcmp(line, "layout")    == 0) cmd_kblayout(args);
-    else
+    else {
+        ck_set_color(CK_COLOR_LIGHT_RED);
         ck_printk("cksh: %s: command not found\n", line);
+        ck_reset_color();
+    }
 }
 
 /* ── Prompt ──────────────────────────────────────────────────────────── */
 
 static void print_prompt(void)
 {
-    /* { cyan, user red, @ yellow, hostname green, space, cwd blue, } cyan, # white */
+    /* [time] user@hostname cwd $ */
+    u64 uptime_s = pit_get_ticks() / PIT_HZ;
+    u64 h = uptime_s / 3600;
+    u64 m = (uptime_s / 60) % 60;
+    u64 s = uptime_s % 60;
+
+    ck_set_color(CK_COLOR_DARK_GRAY);
+    ck_printk("[%llu:%02llu:%02llu] ", h, m, s);
+
     ck_set_color(CK_COLOR_LIGHT_CYAN);
-    ck_putchar('{');
-    ck_set_color(CK_COLOR_LIGHT_RED);
     ck_puts(SHELL_USER);
-    ck_set_color(CK_COLOR_YELLOW);
+    ck_set_color(CK_COLOR_LIGHT_GRAY);
     ck_putchar('@');
     ck_set_color(CK_COLOR_LIGHT_GREEN);
     ck_puts(SHELL_HOSTNAME);
-    ck_reset_color();
-    ck_putchar(' ');
+    
+    ck_set_color(CK_COLOR_LIGHT_GRAY);
+    ck_puts(" : ");
+    
     ck_set_color(CK_COLOR_LIGHT_BLUE);
     ck_puts(shell_cwd);
-    ck_set_color(CK_COLOR_LIGHT_CYAN);
-    ck_putchar('}');
+    
+    ck_set_color(CK_COLOR_YELLOW);
+    ck_puts(" $ ");
     ck_reset_color();
-    ck_puts(" # ");
+}
+
+/* ── Tab completion ─────────────────────────────────────────────────── */
+
+static const char *shell_commands[] = {
+    "help", "clear", "uname", "fastfetch", "neofetch", "free", "mem", "ls", "cat", "stat",
+    "touch", "write", "append", "cp", "mv", "rm", "tree", "du", "mkdir", "rmdir",
+    "hexdump", "grep", "wc", "cd", "pwd", "history", "uptime", "whoami", "hostname",
+    "ps", "tasks", "sleep", "reboot", "halt", "echo", "setup", "setup-guide",
+    "setup-alpine", "arch-install", "sudo", "netinfo", "nics", "ssh", "motd",
+    "mouse", "palette", "tips", "syscheck", "scroll", "resolution", "credits",
+    "banner", "kblayout", "layout", NULL
+};
+
+static void shell_tab_complete(char *line, int *pos)
+{
+    if (*pos == 0) return;
+
+    /* Currently only completes the first word (command) */
+    char word[SHELL_LINE_MAX];
+    int start = *pos;
+    while (start > 0 && line[start-1] != ' ') start--;
+    
+    if (start != 0) return; /* Only complete command names for now */
+
+    int len = *pos - start;
+    memcpy(word, line + start, (size_t)len);
+    word[len] = '\0';
+
+    const char *match = NULL;
+    int match_count = 0;
+
+    for (int i = 0; shell_commands[i]; i++) {
+        if (strncmp(shell_commands[i], word, (size_t)len) == 0) {
+            match = shell_commands[i];
+            match_count++;
+        }
+    }
+
+    if (match_count == 1) {
+        /* Single match: complete it */
+        while (*pos > start) {
+            (*pos)--;
+            ck_putchar('\b');
+        }
+        while (match[len]) {
+            line[(*pos)++] = match[len++];
+            ck_putchar(line[*pos-1]);
+        }
+        /* Add a space after completion */
+        line[(*pos)++] = ' ';
+        ck_putchar(' ');
+    } else if (match_count > 1) {
+        /* Multiple matches: list them */
+        ck_putchar('\n');
+        for (int i = 0; shell_commands[i]; i++) {
+            if (strncmp(shell_commands[i], word, (size_t)len) == 0) {
+                ck_printk("%s  ", shell_commands[i]);
+            }
+        }
+        ck_putchar('\n');
+        print_prompt();
+        ck_puts(line);
+    }
 }
 
 /* ── Shell task entry point ──────────────────────────────────────────── */
@@ -1817,6 +2091,8 @@ void task_shell(void *arg)
                 shell_pos--;
                 ck_putchar('\b');
             }
+        } else if (c == '\t') {
+            shell_tab_complete(shell_line, &shell_pos);
         } else if (c == '\n' || c == '\r') {
             ck_putchar('\n');
             shell_line[shell_pos] = '\0';

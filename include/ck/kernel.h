@@ -53,7 +53,7 @@ void arch_init(void);                 /* GDT + IDT + PIC + PIT */
 void arch_halt(void) __attribute__((noreturn));
 
 /* ── Memory management ──────────────────────────────────────────────── */
-void mm_early_init(void *mb2_info);   /* PMM init (parses multiboot2) */
+void mm_early_init(void);             /* PMM init (parses Limine map) */
 void heap_init(void);
 void *kmalloc(size_t size);
 void *kzalloc(size_t size);
@@ -62,6 +62,7 @@ void  kfree(void *ptr);
 /* ── Scheduler ──────────────────────────────────────────────────────── */
 void sched_init(void);
 void sched_yield(void);
+void sched_sleep_ms(u64 ms);
 
 /* ── Virtual filesystem ─────────────────────────────────────────────── */
 void vfs_init(void);

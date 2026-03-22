@@ -12,7 +12,15 @@ if ! command -v qemu-system-x86_64 >/dev/null 2>&1; then
 fi
 
 echo "Launching QEMU with out/computekernel.iso..."
+# Set OVMF_PATH environment variable to point to your OVMF.fd for UEFI testing
+UEFI_FLAGS=""
+if [ -n "${OVMF_PATH:-}" ]; then
+    UEFI_FLAGS="-bios ${OVMF_PATH}"
+    echo "[CK] UEFI mode enabled (using OVMF)"
+fi
+
 qemu-system-x86_64 \
+  ${UEFI_FLAGS} \
   -m 1024 \
   -cdrom out/computekernel.iso \
   -netdev user,id=net0,hostfwd=tcp::2222-:22 \

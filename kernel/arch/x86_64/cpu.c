@@ -22,6 +22,7 @@ void keyboard_irq_handler(void);
 void mouse_irq_handler(void);
 void sched_tick(void);
 void irq_register(int irq, void (*handler)(void));
+void syscall_init(void);
 
 /* ── IRQ handlers ───────────────────────────────────────────────────── */
 static void irq0_handler(void) /* PIT timer */
@@ -85,6 +86,9 @@ void arch_init(void)
 
     ck_puts("[arch] enabling interrupts\n");
     sti();
+
+    ck_puts("[arch] initialising SYSCALL/SYSRET ... ");
+    syscall_init();
 }
 
 /* ── arch_halt ──────────────────────────────────────────────────────── */

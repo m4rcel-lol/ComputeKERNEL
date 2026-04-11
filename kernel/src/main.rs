@@ -21,6 +21,7 @@ pub mod fs;
 pub mod memory;
 pub mod net;
 pub mod process;
+pub mod shell;
 pub mod syscall;
 
 // Register the kernel entry point with the bootloader.
@@ -45,12 +46,17 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     arch::x86_64::idt::init();
     serial_println!("[OK]   IDT initialized");
 
-    // 4. Initialize memory management (frame allocator + kernel heap).
+    // 4. Initialize and remap the 8259 PIC (must happen before enabling IRQs).
+    serial_println!("[BOOT] Initializing PIC...");
+    arch::x86_64::interrupts::init_pics();
+    serial_println!("[OK]   PIC initialized");
+
+    // 5. Initialize memory management (frame allocator + kernel heap).
     serial_println!("[BOOT] Initializing memory management...");
     memory::init(boot_info);
     serial_println!("[OK]   Memory management initialized");
 
-    // 5. Initialize device drivers.
+    // 6. Initialize device drivers.
     serial_println!("[BOOT] Initializing PCI bus...");
     drivers::pci::init();
     serial_println!("[OK]   PCI bus enumerated");
@@ -59,22 +65,19 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     drivers::keyboard::init();
     serial_println!("[OK]   Keyboard initialized");
 
-    // 6. Initialize process scheduler.
+    // 7. Initialize process scheduler.
     serial_println!("[BOOT] Initializing scheduler...");
     process::init();
     serial_println!("[OK]   Scheduler initialized");
 
-    // 7. Enable hardware interrupts.
+    // 8. Enable hardware interrupts.
     x86_64::instructions::interrupts::enable();
     serial_println!("[OK]   Interrupts enabled");
 
-    kprintln!("ComputeKERNEL v1.0.0 ready");
-    serial_println!("[BOOT] ComputeKERNEL v1.0.0 ready — entering idle loop");
+    serial_println!("[BOOT] ComputeKERNEL v1.0.0 ready — starting shell");
 
-    // Idle loop: halt until the next interrupt.
-    loop {
-        x86_64::instructions::hlt();
-    }
+    // 9. Drop into the interactive kernel shell.
+    shell::run()
 }
 
 /// Panic handler — called on any unrecoverable kernel error.

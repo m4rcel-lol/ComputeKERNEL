@@ -82,14 +82,15 @@ pub fn try_read_char() -> Option<u8> {
 /// This is a fallback path for environments where IRQ keyboard input is not
 /// delivered reliably; it allows the shell to remain interactive via polling.
 pub fn poll_char() -> Option<u8> {
+    let mut status_port: Port<u8> = Port::new(KEYBOARD_STATUS_PORT);
+    let mut data_port: Port<u8> = Port::new(KEYBOARD_DATA_PORT);
+
     x86_64::instructions::interrupts::without_interrupts(|| {
-        let mut status_port: Port<u8> = Port::new(KEYBOARD_STATUS_PORT);
         let status = unsafe { status_port.read() };
         if status & STATUS_OUTPUT_BUFFER_FULL == 0 {
             return None;
         }
 
-        let mut data_port: Port<u8> = Port::new(KEYBOARD_DATA_PORT);
         let scancode = unsafe { data_port.read() };
         decode_scancode(scancode)
     })

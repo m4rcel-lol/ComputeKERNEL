@@ -52,7 +52,7 @@ fn read_line(buf: &mut [u8; MAX_CMD_LEN]) -> usize {
     loop {
         // Wait for a character; hlt() surrenders the CPU between keystrokes.
         let ch = loop {
-            if let Some(c) = keyboard::try_read_char() {
+            if let Some(c) = keyboard::try_read_char().or_else(|| keyboard::poll_char()) {
                 break c;
             }
             x86_64::instructions::hlt();

@@ -7,6 +7,10 @@ use x86_64::instructions::port::Port;
 
 /// PS/2 keyboard data port.
 const KEYBOARD_DATA_PORT: u16 = 0x60;
+/// PS/2 keyboard controller status port.
+const KEYBOARD_STATUS_PORT: u16 = 0x64;
+/// Output buffer full bit in keyboard controller status register.
+const STATUS_OUTPUT_BUFFER_FULL: u8 = 0x01;
 
 /// Capacity of the keyboard input ring buffer.
 const KEY_BUF_SIZE: usize = 256;
@@ -73,28 +77,54 @@ pub fn try_read_char() -> Option<u8> {
     x86_64::instructions::interrupts::without_interrupts(|| KEY_BUFFER.lock().pop())
 }
 
+/// Poll the keyboard controller directly and decode one available key.
+///
+/// This is a fallback path for environments where IRQ keyboard input is not
+/// delivered reliably; it allows the shell to remain interactive via polling.
+pub fn poll_char() -> Option<u8> {
+    let mut status_port: Port<u8> = Port::new(KEYBOARD_STATUS_PORT);
+    let mut data_port: Port<u8> = Port::new(KEYBOARD_DATA_PORT);
+
+    x86_64::instructions::interrupts::without_interrupts(|| {
+        let status = unsafe { status_port.read() };
+        if status & STATUS_OUTPUT_BUFFER_FULL == 0 {
+            return None;
+        }
+
+        let scancode = unsafe { data_port.read() };
+        decode_scancode(scancode)
+    })
+}
+
 /// Called from the keyboard IRQ handler to read and decode one scancode.
 pub fn handle_interrupt() {
     let mut port: Port<u8> = Port::new(KEYBOARD_DATA_PORT);
     let scancode: u8 = unsafe { port.read() };
 
+    if let Some(byte) = decode_scancode(scancode) {
+        KEY_BUFFER.lock().push(byte);
+    }
+}
+
+fn decode_scancode(scancode: u8) -> Option<u8> {
     let mut kb = KEYBOARD.lock();
     if let Ok(Some(key_event)) = kb.add_byte(scancode) {
         if let Some(key) = kb.process_keyevent(key_event) {
             match key {
                 DecodedKey::Unicode(character) => {
                     serial_print!("{}", character);
-                    KEY_BUFFER.lock().push(character as u8);
+                    return Some(character as u8);
                 }
                 DecodedKey::RawKey(key) => {
                     serial_print!("{:?} ", key);
                     match key {
-                        KeyCode::Backspace => KEY_BUFFER.lock().push(0x08),
-                        KeyCode::Delete    => KEY_BUFFER.lock().push(0x7F),
-                        _ => {}
+                        KeyCode::Backspace => return Some(0x08),
+                        KeyCode::Delete => return Some(0x7F),
+                        _ => return None,
                     }
                 }
             }
         }
     }
+    None
 }

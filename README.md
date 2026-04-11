@@ -12,9 +12,9 @@ A production-ready, UNIX-compatible monolithic kernel written in 100% Rust, targ
 - **Virtual memory** via `x86_64::structures::paging::OffsetPageTable`
 - **Kernel heap** using `linked_list_allocator`
 - **Drivers**: UART 16550 serial, VGA text mode, UEFI framebuffer, PCI enumeration, PS/2 keyboard, ACPI stub, NVMe stub, AHCI stub, e1000 NIC stub, Intel HDA stub, xHCI USB stub, Bluetooth HCI stub
-- **Process management**: PCB, round-robin scheduler, signal stubs
+- **Process management**: PCB, round-robin scheduler, baseline `fork`/`execve`/`exit`/`wait4`, default signal delivery
 - **Virtual Filesystem (VFS)**: ext4 stub, `/proc`, `/sys`, `/dev`, initramfs (cpio newc)
-- **System calls**: Linux x86_64 ABI — `read`, `write`, `open`, `close`, `fork`, `execve`, `exit`, `getpid`, `kill`, and more
+- **System calls**: Linux x86_64 ABI — `read`, `write`, `open`, `close`, `fork`, `execve`, `wait4`, `exit`, `getpid`, `kill`, and core pseudo-filesystem I/O (`/proc`, `/sys`, `/dev`)
 - **TCP/IP stack**: Ethernet, IPv4, TCP, UDP parsing layers (send stubs)
 - **PID 1 init** process (`init` crate): mounts filesystems, spawns `/bin/sh`
 

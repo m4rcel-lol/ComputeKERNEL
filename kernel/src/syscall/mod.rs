@@ -78,6 +78,7 @@ pub enum Errno {
     Inval = -22,
     NFile = -23,
     MFile = -24,
+    NoSpc = -28,
     NoSys = -38,
 }
 
@@ -242,7 +243,7 @@ unsafe fn sys_write(fd: i32, buf: *const u8, count: usize) -> i64 {
 
         match file.node {
             PseudoNode::DevNull | PseudoNode::DevZero => count as i64,
-            PseudoNode::DevFull => Errno::NoSpace as i64,
+            PseudoNode::DevFull => Errno::NoSpc as i64,
             PseudoNode::DevTtyS0 => {
                 for &byte in slice {
                     crate::drivers::serial::_serial_print(format_args!("{}", byte as char));

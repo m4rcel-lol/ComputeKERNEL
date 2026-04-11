@@ -9,6 +9,8 @@ use x86_64::instructions::port::Port;
 const KEYBOARD_DATA_PORT: u16 = 0x60;
 /// PS/2 keyboard controller status port.
 const KEYBOARD_STATUS_PORT: u16 = 0x64;
+/// Output buffer full bit in keyboard controller status register.
+const STATUS_OUTPUT_BUFFER_FULL: u8 = 0x01;
 
 /// Capacity of the keyboard input ring buffer.
 const KEY_BUF_SIZE: usize = 256;
@@ -83,7 +85,7 @@ pub fn poll_char() -> Option<u8> {
     x86_64::instructions::interrupts::without_interrupts(|| {
         let mut status_port: Port<u8> = Port::new(KEYBOARD_STATUS_PORT);
         let status = unsafe { status_port.read() };
-        if status & 0x01 == 0 {
+        if status & STATUS_OUTPUT_BUFFER_FULL == 0 {
             return None;
         }
 

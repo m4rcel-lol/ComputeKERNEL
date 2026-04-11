@@ -1,0 +1,81 @@
+name: Build ISO
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mtools xorriso dosfstools
+
+      - name: Install nightly Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: x86_64-unknown-none
+          components: rust-src,llvm-tools-preview
+
+      - name: Build kernel (release)
+        run: cargo +nightly build --package compute-kernel --release
+
+      - name: Create bootable ISO image
+        run: |
+          set -euo pipefail
+
+          KERNEL_BIN="target/x86_64-unknown-none/release/compute-kernel"
+          UEFI_BOOTLOADER="$(find target -type f -path "*build/bootloader-*/out/bin/bootloader-x86_64-uefi.efi" | head -n1)"
+
+          test -f "$KERNEL_BIN"
+          test -n "$UEFI_BOOTLOADER"
+          test -f "$UEFI_BOOTLOADER"
+
+          mkdir -p dist/iso_root/EFI/BOOT
+
+          KERNEL_SIZE="$(stat -c%s "$KERNEL_BIN")"
+          BOOTLOADER_SIZE="$(stat -c%s "$UEFI_BOOTLOADER")"
+          ESP_SIZE_MB="$(( (KERNEL_SIZE + BOOTLOADER_SIZE + 8 * 1024 * 1024 + 1024 * 1024 - 1) / (1024 * 1024) ))"
+          if [ "$ESP_SIZE_MB" -lt 16 ]; then ESP_SIZE_MB=16; fi
+
+          truncate -s "${ESP_SIZE_MB}M" dist/efiboot.img
+          mkfs.vfat dist/efiboot.img
+
+          mmd -i dist/efiboot.img ::/EFI
+          mmd -i dist/efiboot.img ::/EFI/BOOT
+          mcopy -i dist/efiboot.img "$UEFI_BOOTLOADER" ::/EFI/BOOT/BOOTX64.EFI
+          mcopy -i dist/efiboot.img "$KERNEL_BIN" ::/kernel-x86_64
+
+          cp dist/efiboot.img dist/iso_root/efiboot.img
+          cp "$UEFI_BOOTLOADER" dist/iso_root/EFI/BOOT/BOOTX64.EFI
+          cp "$KERNEL_BIN" dist/iso_root/kernel-x86_64
+
+          (
+            cd dist/iso_root
+            xorriso -as mkisofs \
+              -R \
+              -J \
+              -V COMPUTEKERNEL \
+              -e efiboot.img \
+              -no-emul-boot \
+              -o ../compute-kernel.iso \
+              .
+          )
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: compute-kernel-iso
+          path: dist/compute-kernel.iso

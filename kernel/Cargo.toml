@@ -1,0 +1,48 @@
+[package]
+name = "compute-kernel"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Kernel API from the bootloader project (types + entry_point! macro)
+bootloader_api = "0.11"
+# Architecture utilities for x86_64
+x86_64 = "0.15"
+# UART 16550 serial port driver
+uart_16550 = "0.3"
+# Intel 8259 PIC driver
+pic8259 = "0.10"
+# PS/2 keyboard driver
+pc-keyboard = "0.7"
+# ACPI table parsing
+acpi = "5"
+# Linked-list heap allocator
+linked_list_allocator = "0.10"
+# Spinlock primitives
+spin = "0.9"
+# Bit flags
+bitflags = { version = "2", default-features = false }
+# Volatile memory access
+volatile = "0.4"
+
+[build-dependencies]
+# Bootloader build integration
+bootloader = { version = "0.11", features = ["uefi"] }
+
+[[bin]]
+name = "compute-kernel"
+path = "src/main.rs"
+
+[profile.dev]
+panic = "abort"
+opt-level = 1
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[package.metadata.bootloader]
+physical-memory-offset = "0xFFFF800000000000"
+kernel-stack-size = 524288

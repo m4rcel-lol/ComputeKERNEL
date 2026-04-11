@@ -1,0 +1,10 @@
+[build]
+# Use the built-in bare-metal x86_64 target (softfloat, kernel code model,
+# no redzone, SSE disabled).  For a custom target spec see
+# targets/x86_64-computekernel.json — enable with -Zjson-target-spec when
+# that flag is stabilised.
+target = "x86_64-unknown-none"
+
+[unstable]
+build-std = ["core", "compiler_builtins", "alloc"]
+build-std-features = ["compiler-builtins-mem"]

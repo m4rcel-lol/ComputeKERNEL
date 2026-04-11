@@ -10,7 +10,7 @@
 
 extern crate alloc;
 
-use bootloader_api::{entry_point, BootInfo};
+use bootloader_api::{config::Mapping, entry_point, BootInfo, BootloaderConfig};
 use core::alloc::Layout;
 use core::panic::PanicInfo;
 
@@ -24,8 +24,18 @@ pub mod process;
 pub mod shell;
 pub mod syscall;
 
+/// Bootloader configuration used by the `entry_point!` macro.
+///
+/// We require a physical memory mapping because the memory subsystem initializes
+/// paging through `boot_info.physical_memory_offset`.
+pub static BOOTLOADER_CONFIG: BootloaderConfig = {
+    let mut config = BootloaderConfig::new_default();
+    config.mappings.physical_memory = Some(Mapping::Dynamic);
+    config
+};
+
 // Register the kernel entry point with the bootloader.
-entry_point!(kernel_main);
+entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 
 /// Kernel main entry point, called by the bootloader after UEFI setup.
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {

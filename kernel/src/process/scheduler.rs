@@ -1,6 +1,7 @@
 //! Round-robin process scheduler.
 
 use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use crate::serial_println;
 
 /// Monotonic tick counter (incremented by the timer IRQ).
 static TICK: AtomicU64 = AtomicU64::new(0);
@@ -18,6 +19,7 @@ pub fn init() {
 /// Called from the timer interrupt handler on every tick.
 pub fn tick() {
     let t = TICK.fetch_add(1, Ordering::Relaxed) + 1;
+    super::signal::dispatch_signals(current_pid());
     if t % TIMESLICE == 0 {
         schedule();
     }
@@ -33,6 +35,11 @@ pub fn current_pid() -> u32 {
     CURRENT_PID.load(Ordering::Relaxed)
 }
 
+/// Trigger a scheduling decision immediately.
+pub fn force_schedule() {
+    schedule();
+}
+
 /// Perform a round-robin context switch.
 ///
 /// In a full implementation this saves the current register state and restores
@@ -45,8 +52,19 @@ fn schedule() {
     let current = CURRENT_PID.load(Ordering::Relaxed);
 
     // Find the next ready process after the current one (wrapping).
-    let start = table.iter().position(|p| p.pid == current).unwrap_or(0);
     let n = table.len();
+    if n == 0 {
+        CURRENT_PID.store(0, Ordering::Relaxed);
+        return;
+    }
+
+    let start = match table.iter().position(|p| p.pid == current) {
+        Some(idx) => idx,
+        None => {
+            serial_println!("[SCHED] current PID {} not found; restarting from slot 0", current);
+            0
+        }
+    };
     for i in 1..=n {
         let idx = (start + i) % n;
         if table[idx].state == ProcessState::Ready || table[idx].state == ProcessState::Running {

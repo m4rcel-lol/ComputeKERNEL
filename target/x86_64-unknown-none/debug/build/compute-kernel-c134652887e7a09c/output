@@ -1,5 +1,0 @@
-cargo:rerun-if-changed=/home/runner/work/ComputeKERNEL/ComputeKERNEL/kernel/linker.ld
-cargo:rerun-if-changed=build.rs
-cargo:rustc-link-arg=-T/home/runner/work/ComputeKERNEL/ComputeKERNEL/kernel/linker.ld
-cargo:rustc-link-arg=-no-pie
-cargo:rustc-link-arg=--no-relax

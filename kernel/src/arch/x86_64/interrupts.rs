@@ -34,6 +34,13 @@ pub enum InterruptIndex {
     SecondaryAta,
 }
 
+impl InterruptIndex {
+    #[inline]
+    fn as_u8(self) -> u8 {
+        self as u8
+    }
+}
+
 // ── CPU Exception Handlers ─────────────────────────────────────────────────
 
 pub extern "x86-interrupt" fn divide_error_handler(frame: InterruptStackFrame) {
@@ -150,23 +157,84 @@ pub extern "x86-interrupt" fn security_exception_handler(
 pub extern "x86-interrupt" fn timer_interrupt_handler(_frame: InterruptStackFrame) {
     // Increment tick counter
     crate::process::scheduler::tick();
-    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::Timer as u8) };
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::Timer.as_u8()) };
 }
 
 pub extern "x86-interrupt" fn keyboard_interrupt_handler(_frame: InterruptStackFrame) {
     crate::drivers::keyboard::handle_interrupt();
-    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::Keyboard as u8) };
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::Keyboard.as_u8()) };
 }
 
 pub extern "x86-interrupt" fn primary_ata_handler(_frame: InterruptStackFrame) {
-    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::PrimaryAta as u8) };
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::PrimaryAta.as_u8()) };
 }
 
 pub extern "x86-interrupt" fn secondary_ata_handler(_frame: InterruptStackFrame) {
-    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::SecondaryAta as u8) };
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::SecondaryAta.as_u8()) };
+}
+
+pub extern "x86-interrupt" fn cascade_interrupt_handler(_frame: InterruptStackFrame) {
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::_Cascade.as_u8()) };
+}
+
+pub extern "x86-interrupt" fn com2_interrupt_handler(_frame: InterruptStackFrame) {
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::_Com2.as_u8()) };
+}
+
+pub extern "x86-interrupt" fn com1_interrupt_handler(_frame: InterruptStackFrame) {
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::_Com1.as_u8()) };
+}
+
+pub extern "x86-interrupt" fn lpt2_interrupt_handler(_frame: InterruptStackFrame) {
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::_Lpt2.as_u8()) };
+}
+
+pub extern "x86-interrupt" fn floppy_interrupt_handler(_frame: InterruptStackFrame) {
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::_FloppyDisk.as_u8()) };
+}
+
+pub extern "x86-interrupt" fn lpt1_interrupt_handler(_frame: InterruptStackFrame) {
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::_Lpt1.as_u8()) };
+}
+
+pub extern "x86-interrupt" fn rtc_interrupt_handler(_frame: InterruptStackFrame) {
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::_RtcTimer.as_u8()) };
+}
+
+pub extern "x86-interrupt" fn legacy1_interrupt_handler(_frame: InterruptStackFrame) {
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::_Legacy1.as_u8()) };
+}
+
+pub extern "x86-interrupt" fn legacy2_interrupt_handler(_frame: InterruptStackFrame) {
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::_Legacy2.as_u8()) };
+}
+
+pub extern "x86-interrupt" fn legacy3_interrupt_handler(_frame: InterruptStackFrame) {
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::_Legacy3.as_u8()) };
+}
+
+pub extern "x86-interrupt" fn mouse_interrupt_handler(_frame: InterruptStackFrame) {
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::_Ps2Mouse.as_u8()) };
+}
+
+pub extern "x86-interrupt" fn fpu_interrupt_handler(_frame: InterruptStackFrame) {
+    unsafe { PICS.lock().notify_end_of_interrupt(InterruptIndex::_FpuCoprocessor.as_u8()) };
 }
 
 /// Initialize the PIC and remap IRQs above CPU exceptions.
 pub fn init_pics() {
-    unsafe { PICS.lock().initialize() };
+    unsafe {
+        let mut pics = PICS.lock();
+        pics.initialize();
+
+        // Explicitly unmask timer, keyboard, and cascade on PIC1 so shell input
+        // and periodic timer interrupts work reliably on different firmware.
+        //
+        // PIC1 IRQ bits:
+        // 0 = timer, 1 = keyboard, 2 = cascade to PIC2.
+        let primary_mask: u8 = 0xFF & !((1 << 0) | (1 << 1) | (1 << 2));
+        // Keep all PIC2 IRQs masked until dedicated drivers are enabled.
+        let secondary_mask: u8 = 0xFF;
+        pics.write_masks(primary_mask, secondary_mask);
+    };
 }

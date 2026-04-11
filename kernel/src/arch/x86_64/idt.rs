@@ -52,6 +52,30 @@ pub fn init() {
             .set_handler_fn(interrupts::timer_interrupt_handler);
         idt[interrupts::InterruptIndex::Keyboard as u8]
             .set_handler_fn(interrupts::keyboard_interrupt_handler);
+        idt[interrupts::InterruptIndex::_Cascade as u8]
+            .set_handler_fn(interrupts::cascade_interrupt_handler);
+        idt[interrupts::InterruptIndex::_Com2 as u8]
+            .set_handler_fn(interrupts::com2_interrupt_handler);
+        idt[interrupts::InterruptIndex::_Com1 as u8]
+            .set_handler_fn(interrupts::com1_interrupt_handler);
+        idt[interrupts::InterruptIndex::_Lpt2 as u8]
+            .set_handler_fn(interrupts::lpt2_interrupt_handler);
+        idt[interrupts::InterruptIndex::_FloppyDisk as u8]
+            .set_handler_fn(interrupts::floppy_interrupt_handler);
+        idt[interrupts::InterruptIndex::_Lpt1 as u8]
+            .set_handler_fn(interrupts::lpt1_interrupt_handler);
+        idt[interrupts::InterruptIndex::_RtcTimer as u8]
+            .set_handler_fn(interrupts::rtc_interrupt_handler);
+        idt[interrupts::InterruptIndex::_Legacy1 as u8]
+            .set_handler_fn(interrupts::legacy1_interrupt_handler);
+        idt[interrupts::InterruptIndex::_Legacy2 as u8]
+            .set_handler_fn(interrupts::legacy2_interrupt_handler);
+        idt[interrupts::InterruptIndex::_Legacy3 as u8]
+            .set_handler_fn(interrupts::legacy3_interrupt_handler);
+        idt[interrupts::InterruptIndex::_Ps2Mouse as u8]
+            .set_handler_fn(interrupts::mouse_interrupt_handler);
+        idt[interrupts::InterruptIndex::_FpuCoprocessor as u8]
+            .set_handler_fn(interrupts::fpu_interrupt_handler);
         idt[interrupts::InterruptIndex::PrimaryAta as u8]
             .set_handler_fn(interrupts::primary_ata_handler);
         idt[interrupts::InterruptIndex::SecondaryAta as u8]

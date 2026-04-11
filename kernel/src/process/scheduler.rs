@@ -1,6 +1,7 @@
 //! Round-robin process scheduler.
 
 use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use crate::serial_println;
 
 /// Monotonic tick counter (incremented by the timer IRQ).
 static TICK: AtomicU64 = AtomicU64::new(0);
@@ -57,7 +58,13 @@ fn schedule() {
         return;
     }
 
-    let start = table.iter().position(|p| p.pid == current).unwrap_or(0);
+    let start = match table.iter().position(|p| p.pid == current) {
+        Some(idx) => idx,
+        None => {
+            serial_println!("[SCHED] current PID {} not found; restarting from slot 0", current);
+            0
+        }
+    };
     for i in 1..=n {
         let idx = (start + i) % n;
         if table[idx].state == ProcessState::Ready || table[idx].state == ProcessState::Running {

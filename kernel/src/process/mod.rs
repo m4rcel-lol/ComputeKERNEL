@@ -171,6 +171,19 @@ pub fn getpid() -> u32 {
     scheduler::current_pid()
 }
 
+/// Return true if the current process is marked as zombie.
+pub fn current_is_zombie() -> bool {
+    interrupts::without_interrupts(|| {
+        let pid = scheduler::current_pid();
+        PROCESS_TABLE
+            .lock()
+            .iter()
+            .find(|p| p.pid == pid)
+            .map(|p| p.state == ProcessState::Zombie)
+            .unwrap_or(false)
+    })
+}
+
 /// Wait for a child to exit.
 ///
 /// `target`:

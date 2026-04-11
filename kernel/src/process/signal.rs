@@ -64,13 +64,21 @@ pub fn dispatch_signals(pid: u32) {
             return;
         }
 
-        if pending & (1u32 << SIGKILL) != 0
-            || pending & (1u32 << SIGTERM) != 0
-            || pending & (1u32 << SIGINT) != 0
-            || pending & (1u32 << SIGQUIT) != 0
-        {
+        let terminating_sig = if pending & (1u32 << SIGKILL) != 0 {
+            Some(SIGKILL)
+        } else if pending & (1u32 << SIGTERM) != 0 {
+            Some(SIGTERM)
+        } else if pending & (1u32 << SIGINT) != 0 {
+            Some(SIGINT)
+        } else if pending & (1u32 << SIGQUIT) != 0 {
+            Some(SIGQUIT)
+        } else {
+            None
+        };
+
+        if let Some(sig) = terminating_sig {
             proc.state = ProcessState::Zombie;
-            proc.exit_code = 128 + SIGTERM as i32;
+            proc.exit_code = 128 + sig as i32;
             proc.pending_signals = 0;
             return;
         }

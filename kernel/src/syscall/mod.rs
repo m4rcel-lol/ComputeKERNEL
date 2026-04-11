@@ -144,6 +144,9 @@ unsafe fn sys_read(fd: i32, buf: *mut u8, count: usize) -> i64 {
         let mut read = 0usize;
 
         while read == 0 {
+            if process::current_is_zombie() {
+                return Errno::Intr as i64;
+            }
             if let Some(ch) = crate::drivers::keyboard::try_read_char()
                 .or_else(|| crate::drivers::keyboard::poll_char())
             {
@@ -181,8 +184,9 @@ unsafe fn sys_read(fd: i32, buf: *mut u8, count: usize) -> i64 {
         PseudoNode::ProcUptime => {
             let ticks = crate::process::scheduler::ticks();
             let seconds = ticks / 100;
+            // Baseline placeholder: idle time is not tracked separately yet.
             let content = format!("{}.00 {}.00\n", seconds, seconds);
-            read_dynamic(out, file.offset, content.as_bytes())
+            read_static(out, file.offset, content.as_bytes())
         }
         PseudoNode::ProcMeminfo => {
             read_static(out, file.offset, b"MemTotal:         102400 kB\nMemFree:           51200 kB\n")
@@ -209,10 +213,6 @@ fn read_static(buf: &mut [u8], offset: u64, content: &[u8]) -> usize {
     let n = available.len().min(buf.len());
     buf[..n].copy_from_slice(&available[..n]);
     n
-}
-
-fn read_dynamic(buf: &mut [u8], offset: u64, content: &[u8]) -> usize {
-    read_static(buf, offset, content)
 }
 
 unsafe fn sys_write(fd: i32, buf: *const u8, count: usize) -> i64 {

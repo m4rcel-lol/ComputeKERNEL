@@ -151,6 +151,21 @@ impl Writer {
         self.row = 0;
         self.column_position = 0;
     }
+
+    /// Erase the character immediately before the cursor (backspace).
+    pub fn backspace(&mut self) {
+        if self.column_position > 0 {
+            self.column_position -= 1;
+            let row = self.row;
+            let col = self.column_position;
+            self.write_char_at(row, col, b' ', self.color_code.0);
+        }
+    }
+
+    /// Change the foreground and background colour for subsequent writes.
+    pub fn set_color(&mut self, fg: Color, bg: Color) {
+        self.color_code = ColorCode::new(fg, bg);
+    }
 }
 
 impl fmt::Write for Writer {

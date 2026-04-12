@@ -5,22 +5,45 @@
 //! hardware initialisation is complete.
 
 use crate::drivers::keyboard;
+use crate::drivers::serial;
 use crate::drivers::vga::{Color, WRITER};
-use crate::{kprint, kprintln};
+use crate::{kprint, kprintln, serial_print, serial_println};
 use x86_64::instructions::interrupts;
 
 const MAX_CMD_LEN: usize = 256;
 const HOSTNAME: &str = "computekernel";
 const USERNAME: &str = "root";
 
+macro_rules! console_print {
+    ($($arg:tt)*) => {{
+        kprint!($($arg)*);
+        serial_print!($($arg)*);
+    }};
+}
+
+macro_rules! console_println {
+    () => {{
+        kprintln!();
+        serial_println!();
+    }};
+    ($fmt:expr) => {{
+        kprintln!($fmt);
+        serial_println!($fmt);
+    }};
+    ($fmt:expr, $($arg:tt)*) => {{
+        kprintln!($fmt, $($arg)*);
+        serial_println!($fmt, $($arg)*);
+    }};
+}
+
 // ── Public entry point ─────────────────────────────────────────────────────
 
 /// Run the interactive shell. Never returns.
 pub fn run() -> ! {
-    kprintln!();
-    kprintln!("Welcome to ComputeKERNEL v1.0.0");
-    kprintln!("Type 'help' for available commands.");
-    kprintln!();
+    console_println!();
+    console_println!("Welcome to ComputeKERNEL v1.0.0");
+    console_println!("Type 'help' for available commands.");
+    console_println!();
 
     loop {
         print_prompt();
@@ -35,11 +58,11 @@ pub fn run() -> ! {
 /// Print a fish/zsh-style coloured prompt.
 fn print_prompt() {
     set_color(Color::LightGreen, Color::Black);
-    kprint!("{}@{}", USERNAME, HOSTNAME);
+    console_print!("{}@{}", USERNAME, HOSTNAME);
     set_color(Color::White, Color::Black);
-    kprint!(" ~ ");
+    console_print!(" ~ ");
     set_color(Color::LightCyan, Color::Black);
-    kprint!("% ");
+    console_print!("% ");
     set_color(Color::White, Color::Black);
 }
 
@@ -52,7 +75,10 @@ fn read_line(buf: &mut [u8; MAX_CMD_LEN]) -> usize {
     loop {
         // Wait for a character; hlt() surrenders the CPU between keystrokes.
         let ch = loop {
-            if let Some(c) = keyboard::try_read_char().or_else(|| keyboard::poll_char()) {
+            if let Some(c) = keyboard::try_read_char()
+                .or_else(|| serial::try_read_byte())
+                .or_else(|| keyboard::poll_char())
+            {
                 break c;
             }
             x86_64::instructions::hlt();
@@ -61,7 +87,7 @@ fn read_line(buf: &mut [u8; MAX_CMD_LEN]) -> usize {
         match ch {
             // Enter — commit the line.
             b'\n' | b'\r' => {
-                kprintln!();
+                console_println!();
                 break;
             }
             // Backspace (^H) or DEL.
@@ -74,14 +100,14 @@ fn read_line(buf: &mut [u8; MAX_CMD_LEN]) -> usize {
             }
             // Ctrl+C — cancel the current line.
             0x03 => {
-                kprintln!("^C");
+                console_println!("^C");
                 return 0;
             }
             // Printable ASCII.
             c if c >= 0x20 && pos < MAX_CMD_LEN - 1 => {
                 buf[pos] = c;
                 pos += 1;
-                kprint!("{}", c as char);
+                console_print!("{}", c as char);
             }
             _ => {}
         }
@@ -115,7 +141,7 @@ fn execute(raw: &[u8]) {
         "reboot"             => cmd_reboot(),
         _ => {
             set_color(Color::LightRed, Color::Black);
-            kprintln!("shell: command not found: {}", cmd);
+            console_println!("shell: command not found: {}", cmd);
             set_color(Color::White, Color::Black);
         }
     }
@@ -124,16 +150,16 @@ fn execute(raw: &[u8]) {
 // ── Built-in commands ──────────────────────────────────────────────────────
 
 fn cmd_help() {
-    kprintln!("ComputeKERNEL built-in commands:");
-    kprintln!("  help      - show this help");
-    kprintln!("  clear     - clear the screen");
-    kprintln!("  echo      - print arguments");
-    kprintln!("  uname     - print system information");
-    kprintln!("  version   - print kernel version");
-    kprintln!("  ps        - list processes");
-    kprintln!("  uptime    - show uptime in ticks");
-    kprintln!("  halt      - halt the system");
-    kprintln!("  reboot    - reboot the system");
+    console_println!("ComputeKERNEL built-in commands:");
+    console_println!("  help      - show this help");
+    console_println!("  clear     - clear the screen");
+    console_println!("  echo      - print arguments");
+    console_println!("  uname     - print system information");
+    console_println!("  version   - print kernel version");
+    console_println!("  ps        - list processes");
+    console_println!("  uptime    - show uptime in ticks");
+    console_println!("  halt      - halt the system");
+    console_println!("  reboot    - reboot the system");
 }
 
 fn cmd_clear() {
@@ -141,23 +167,23 @@ fn cmd_clear() {
 }
 
 fn cmd_echo(args: &str) {
-    kprintln!("{}", args);
+    console_println!("{}", args);
 }
 
 fn cmd_uname() {
-    kprintln!("ComputeKERNEL v1.0.0 x86_64");
+    console_println!("ComputeKERNEL v1.0.0 x86_64");
 }
 
 fn cmd_version() {
-    kprintln!("ComputeKERNEL v1.0.0");
-    kprintln!("Built with Rust (nightly)");
-    kprintln!("Architecture: x86_64");
+    console_println!("ComputeKERNEL v1.0.0");
+    console_println!("Built with Rust (nightly)");
+    console_println!("Architecture: x86_64");
 }
 
 fn cmd_ps() {
     use crate::process::{ProcessState, PROCESS_TABLE};
     let table = PROCESS_TABLE.lock();
-    kprintln!("  PID  STATE    NAME");
+    console_println!("  PID  STATE    NAME");
     for p in table.iter() {
         let state = match p.state {
             ProcessState::Ready   => "READY  ",
@@ -165,17 +191,17 @@ fn cmd_ps() {
             ProcessState::Blocked => "BLOCKED",
             ProcessState::Zombie  => "ZOMBIE ",
         };
-        kprintln!("  {:3}  {}  {}", p.pid, state, p.name);
+        console_println!("  {:3}  {}  {}", p.pid, state, p.name);
     }
 }
 
 fn cmd_uptime() {
     let ticks = crate::process::scheduler::ticks();
-    kprintln!("uptime: {} ticks", ticks);
+    console_println!("uptime: {} ticks", ticks);
 }
 
 fn cmd_halt() {
-    kprintln!("Halting system...");
+    console_println!("Halting system...");
     x86_64::instructions::interrupts::disable();
     loop {
         x86_64::instructions::hlt();
@@ -183,7 +209,7 @@ fn cmd_halt() {
 }
 
 fn cmd_reboot() {
-    kprintln!("Rebooting...");
+    console_println!("Rebooting...");
     // Pulse the keyboard controller's reset line (port 0x64, command 0xFE).
     unsafe {
         let mut port: x86_64::instructions::port::Port<u8> =
